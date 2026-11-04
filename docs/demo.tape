@@ -1,32 +1,36 @@
-# Genera docs/demo.gif ejecutando: vhs docs/demo.tape
-# Requiere vhs (https://github.com/charmbracelet/vhs) y el binario compilado.
+# Genera docs/demo.gif:  cargo build --release && vhs docs/demo.tape
+# Requiere vhs (https://github.com/charmbracelet/vhs), ttyd y ffmpeg.
 Output docs/demo.gif
 
 Set Shell "bash"
-Set FontSize 16
+Set FontSize 14
 Set Width 1000
-Set Height 600
-Set Theme "Catppuccin Mocha"
+Set Height 620
 Set Padding 12
-Set TypingSpeed 60ms
+Set Theme "Catppuccin Mocha"
+Set TypingSpeed 40ms
 
-Type "cargo run --release"
+Hide
+Type "./target/release/lunar-link --no-outages"
 Enter
-Sleep 2s
+Sleep 1s
+Show
+Sleep 1s
 
-# Menú principal -> Ping
-Down 5
-Sleep 400ms
+# Ping: el paquete viaja a la Luna y vuelve.
+Down 4
 Enter
-Sleep 4s
+Enter
+Sleep 3.2s
 
-# Volver y descargar un archivo
+# Archivos: lista y descarga con barra de progreso.
 Escape
-Up 4
+Up 3
 Enter
-Sleep 600ms
+Sleep 3s
 Enter
-Sleep 6s
+Sleep 5s
 
+Hide
+Escape
 Type "q"
-Sleep 500ms

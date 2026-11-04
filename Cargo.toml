@@ -2,6 +2,14 @@
 name = "lunar-link"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "A tiny simulated lunar server you connect to from an animated terminal UI, with realistic space-signal delay"
+license = "GPL-3.0-only"
+repository = "https://github.com/AdriaBC06/Lunar-Link"
+readme = "README.md"
+keywords = ["tui", "simulator", "space", "latency", "ratatui"]
+categories = ["command-line-utilities", "simulation"]
+exclude = [".github", "docs/*.gif", "docs/*.png", "docs/*.tape"]
 
 [dependencies]
 clap = { version = "4.6.7", features = ["derive"] }

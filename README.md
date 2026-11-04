@@ -62,21 +62,43 @@ El servidor simula la estación **Base Tranquilidad** y ofrece contenido fijo, e
 ## Instalación
 
 ```
-cargo install lunar-link
+cargo install --git https://github.com/AdriaBC06/Lunar-Link
 lunar-link
 ```
 
-Un solo binario, un solo comando.
+Un solo binario, un solo comando. Necesita Rust 1.88 o superior. También hay binarios precompilados para Linux, macOS y Windows en la sección de [releases](https://github.com/AdriaBC06/Lunar-Link/releases).
+
+Para compilarlo desde el repositorio:
+
+```
+git clone https://github.com/AdriaBC06/Lunar-Link
+cd Lunar-Link
+cargo run --release
+```
 
 ## Uso
 
 ```
-lunar-link                    # retardo Tierra-Luna (por defecto)
-lunar-link --target marte     # retardo Tierra-Marte (3-22 min)
+lunar-link                              # retardo Tierra-Luna (por defecto)
+lunar-link --target marte               # retardo Tierra-Marte (3-22 min)
 lunar-link --target marte --speed 100   # Marte con el tiempo acelerado x100
-lunar-link --delay 5          # retardo fijo en segundos (útil para pruebas)
-lunar-link --no-outages       # sin cortes de señal
+lunar-link --delay 5                    # retardo de ida fijo en segundos (útil para pruebas)
+lunar-link --no-outages                 # sin cortes de señal
 ```
+
+### Controles
+
+| Tecla | Acción |
+|---|---|
+| `↑` `↓` / `j` `k` | Moverse por el menú o por una lista |
+| `Enter` / `→` | Abrir una sección o ejecutar la acción |
+| `Esc` / `←` | Volver al menú |
+| `t` | Traceroute (en Ping) |
+| `←` `→` | Cambiar de imagen (en Galería) |
+| Clic | Abrir una opción del menú |
+| `q` / `Ctrl+C` | Salir |
+
+Necesita una terminal de al menos 64×24. Si no admite color verdadero, usa 256 colores.
 
 ## Stack
 
@@ -93,7 +115,7 @@ lunar-link --no-outages       # sin cortes de señal
 - `ui`: pantallas, widgets y animaciones de la TUI.
 - `app`: estado de la aplicación y bucle de eventos.
 
-Planificación de desarrollo en [`docs/PLANNING.md`](docs/PLANNING.md).
+Diagramas y decisiones de diseño en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Planificación de desarrollo en [`docs/PLANNING.md`](docs/PLANNING.md).
 
 ## Licencia
 
