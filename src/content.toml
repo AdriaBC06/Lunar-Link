@@ -1,0 +1,195 @@
+# Contenido premontado del servidor lunar (Base Tranquilidad).
+
+[[mail]]
+from = "Cmdte. Ibarra <ibarra@tranquilidad.luna>"
+subject = "Bienvenido a Base Tranquilidad"
+body = """
+Hola, recién llegado:
+
+Si lees esto, tu enlace funciona y la señal ha viajado 384.000 km para traerte este mensaje. Úsalo con cariño: cada pregunta tarda unos segundos en volver.
+
+Las normas son pocas: no toques el rover de Marta sin permiso, el café del módulo B es sagrado y, si ves una tormenta solar en el panel de telemetría, quédate donde estás.
+
+Un abrazo desde el Mar de la Tranquilidad,
+Ibarra
+"""
+
+[[mail]]
+from = "Marta Okafor <marta@tranquilidad.luna>"
+subject = "Re: el rover"
+body = """
+Alguien ha movido el rover tres metros a la izquierda. Sé que has sido tú.
+
+No pasa nada, pero ahora tiene una rueda atascada en un cráter y el polvo se mete por todas partes. Si pasas por el garaje, tráeme la llave del 13.
+
+PD: la gravedad es un sexto de la terrestre, así que el cráter no es tan profundo como parece. Casi.
+"""
+
+[[mail]]
+from = "Centro de Control <control@tierra.esa>"
+subject = "Ventana de comunicaciones"
+body = """
+Recordatorio automático.
+
+Durante la fase de cara oculta de la órbita del relé perderás la señal unos 10 segundos cada ciclo. También pueden producirse cortes breves por interferencias y tormentas solares.
+
+No es un fallo: tu cliente reintentará el envío en cuanto vuelva la señal. Paciencia, que la luz solo va a 300.000 km/s.
+"""
+
+[[mail]]
+from = "Tomás <tomas@tranquilidad.luna>"
+subject = "Receta de tortilla lunar"
+body = """
+Ingredientes (para 4):
+  - 6 huevos deshidratados
+  - 1 patata del invernadero (la única)
+  - Mucha fe
+
+Se bate todo, se cocina a presión reducida y se sirve antes de que flote. Sale rara, pero sale.
+"""
+
+[[mail]]
+from = "Sistema <no-reply@tranquilidad.luna>"
+subject = "Aviso: nivel de polvo"
+body = """
+El nivel de polvo regolítico ha superado el umbral de confort en el módulo C.
+
+Se recomienda cepillar las botas, sacudir los trajes y no respirar fuerte. El polvo lunar huele a pólvora quemada, no es una metáfora.
+"""
+
+[[file]]
+name = "mapa_mar_tranquilidad.txt"
+size_kb = 48
+description = "Mapa de referencia de la zona de aterrizaje."
+
+[[file]]
+name = "informe_regolito.pdf"
+size_kb = 96
+description = "Informe sobre la composición del regolito local."
+
+[[file]]
+name = "fotos_amanecer_lunar.zip"
+size_kb = 210
+description = "Una colección de fotos del amanecer desde el módulo A."
+
+[[file]]
+name = "diario_tripulacion.txt"
+size_kb = 36
+description = "El diario compartido de la tripulación (con faltas de ortografía)."
+
+[[file]]
+name = "planos_rover_v3.zip"
+size_kb = 320
+description = "Planos del rover, versión 3. Incluye la rueda atascada."
+
+[[image]]
+title = "La Luna"
+art = '''
+        _..._
+      .::::. `.
+     :::::::.  :
+     ::::::::  :
+     `::::::' .'
+       `'::'-'
+'''
+
+[[image]]
+title = "Amanecer terrestre"
+art = '''
+   .        *            .      *
+        .         .-""""-.
+   *          .   /  .  ' \  .
+                 |  ~  .   |
+      ____________\ . ~  ./____________
+     /////////////`-.____.-'\\\\\\\\\\\\\
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+'''
+
+[[image]]
+title = "Rover de Marta"
+art = '''
+          ___
+     ____/ o \___
+    |  __  ___  _|=>
+    (_(__)(___)(_)
+   ~~~~~~~~~~~~~~~~~~~
+'''
+
+[[image]]
+title = "Módulo de aterrizaje"
+art = '''
+        _/\_
+       /_||_\
+      //|__|\\
+     /_/ || \_\
+    ___/ || \___
+   /   /  \  \   \
+  /___/    \  \___\
+ ~~~~~~~~~~~~~~~~~~~~~
+'''
+
+[[node]]
+id = "inicio"
+text = "Operador de Base Tranquilidad al habla. Recuerda que hablas con un menú, no con una persona. ¿En qué puedo ayudarte?"
+keywords = ["hola", "buenas", "operador", "inicio", "menu"]
+options = [
+  { label = "¿Dónde estoy?", goto = "donde" },
+  { label = "¿Cuánto tarda la señal?", goto = "senal" },
+  { label = "Quiero comer algo", goto = "comida" },
+  { label = "¿Hay agua?", goto = "agua" },
+  { label = "Cuéntame un secreto", goto = "secreto" },
+]
+
+[[node]]
+id = "donde"
+text = "Estás en Base Tranquilidad, en el Mar de la Tranquilidad. Hace 14 días de sol seguidos y 14 de noche. Hoy, de momento, hace un día precioso."
+keywords = ["donde", "estoy", "base", "luna", "ubicacion"]
+options = [
+  { label = "Volver al inicio", goto = "inicio" },
+  { label = "¿Cuánto tarda la señal?", goto = "senal" },
+]
+
+[[node]]
+id = "senal"
+text = "La luz tarda unos 1,3 segundos en cruzar los 384.000 km que nos separan. Ida y vuelta, unos 2,6. Este mensaje ya ha pagado ese peaje."
+keywords = ["senal", "tarda", "retardo", "latencia", "luz", "ping"]
+options = [
+  { label = "¿Y a Marte?", goto = "marte" },
+  { label = "Volver al inicio", goto = "inicio" },
+]
+
+[[node]]
+id = "marte"
+text = "A Marte la luz tarda entre 3 y 22 minutos, según dónde estén los planetas. Allí no se chatea: se escriben cartas."
+keywords = ["marte", "rojo"]
+options = [{ label = "Volver al inicio", goto = "inicio" }]
+
+[[node]]
+id = "comida"
+text = "El menú de hoy: tortilla lunar de Tomás o ración de emergencia sabor indefinido. Recomendamos la tortilla, si te atreves."
+keywords = ["comer", "comida", "hambre", "tortilla", "cena"]
+options = [
+  { label = "Volver al inicio", goto = "inicio" },
+  { label = "¿Hay agua?", goto = "agua" },
+]
+
+[[node]]
+id = "agua"
+text = "Hay hielo en los cráteres polares y un reciclador que devuelve el 98% del agua. El 2% restante lo llamamos 'el misterio del módulo B'."
+keywords = ["agua", "hielo", "sed", "beber"]
+options = [{ label = "Volver al inicio", goto = "inicio" }]
+
+[[node]]
+id = "secreto"
+text = "El Comandante Ibarra canta ópera en la ducha. No se lo digas, que aquí el sonido no viaja pero los rumores sí."
+keywords = ["secreto", "rumor", "chisme"]
+options = [{ label = "Volver al inicio", goto = "inicio" }]
+
+[[node]]
+id = "no_entiendo"
+text = "No he entendido eso. Soy un menú con buena memoria, no una inteligencia artificial. Prueba con una de estas opciones."
+options = [
+  { label = "Volver al inicio", goto = "inicio" },
+  { label = "¿Dónde estoy?", goto = "donde" },
+  { label = "¿Cuánto tarda la señal?", goto = "senal" },
+]

@@ -1,16 +1,16 @@
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use lunar_link::app::App;
-use lunar_link::link::{Link, Target};
+use lunar_link::link::{Link, LinkEvent, Target};
+use lunar_link::server::Request;
 use lunar_link::ui;
 use ratatui::crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
-    MouseEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind, MouseButton, MouseEventKind,
 };
 use ratatui::crossterm::execute;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, UnboundedSender};
 
 #[derive(Parser)]
 #[command(
@@ -32,11 +32,15 @@ struct Cli {
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let cli = Cli::parse();
-    let link = Link {
-        target: cli.target,
-        fixed_one_way: cli.delay.map(Duration::from_secs_f64),
-        outages: !cli.no_outages,
-    };
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64);
+    let link = Link::new(
+        cli.target,
+        cli.delay.map(Duration::from_secs_f64),
+        !cli.no_outages,
+        seed,
+    );
 
     let mut terminal = ratatui::init();
     execute!(io::stdout(), EnableMouseCapture)?;
@@ -50,22 +54,20 @@ async fn run(terminal: &mut ratatui::DefaultTerminal, mut app: App) -> io::Resul
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     while !app.should_quit {
-        while let Ok(response) = rx.try_recv() {
-            app.on_response(response);
+        while let Ok(event) = rx.try_recv() {
+            app.on_event(event);
+        }
+        app.tick();
+        if let Some(request) = app.poll() {
+            dispatch(&app, request, &tx);
         }
         terminal.draw(|frame| ui::render(frame, &app))?;
 
         if !event::poll(Duration::from_millis(33))? {
             continue;
         }
-        match event::read()? {
-            Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
-                KeyCode::Down | KeyCode::Char('j') => app.select_next(),
-                KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
-                KeyCode::Enter => dispatch(&mut app, &tx),
-                _ => {}
-            },
+        let request = match event::read()? {
+            Event::Key(key) if key.kind == KeyEventKind::Press => app.on_key(key),
             Event::Mouse(mouse) if mouse.kind == MouseEventKind::Down(MouseButton::Left) => {
                 let inner = ui::menu_inner(terminal.get_frame().area());
                 let inside = mouse.column >= inner.x
@@ -73,21 +75,22 @@ async fn run(terminal: &mut ratatui::DefaultTerminal, mut app: App) -> io::Resul
                     && mouse.row >= inner.y;
                 if inside {
                     app.select((mouse.row - inner.y) as usize);
-                    dispatch(&mut app, &tx);
+                    app.open_section()
+                } else {
+                    None
                 }
             }
-            _ => {}
+            _ => None,
+        };
+        if let Some(request) = request {
+            dispatch(&app, request, &tx);
         }
     }
     Ok(())
 }
 
-fn dispatch(app: &mut App, tx: &mpsc::UnboundedSender<lunar_link::server::Response>) {
-    if let Some(request) = app.activate() {
-        let link = app.link;
-        let tx = tx.clone();
-        tokio::spawn(async move {
-            let _ = tx.send(link.send(request).await);
-        });
-    }
+fn dispatch(app: &App, request: Request, tx: &UnboundedSender<LinkEvent>) {
+    let link = app.link;
+    let tx = tx.clone();
+    tokio::spawn(async move { link.transmit(request, tx).await });
 }
