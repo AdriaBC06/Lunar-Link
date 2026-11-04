@@ -16,7 +16,7 @@
 
 Lunar Link es una interfaz de terminal (TUI) conectada a una estación lunar simulada. Cada petición sufre el retardo que tendría una señal de radio real: unos **1,3 s por trayecto** hasta la Luna y **entre 3 y 22 minutos** hasta Marte. El enlace modela además la distancia variable, los cortes de señal y un ancho de banda limitado.
 
-Todo el contenido es local y está escrito a mano: no usa red, claves ni modelos de IA.
+Todo el contenido es fijo y viene incluido en el programa: sin red, claves ni modelos de IA en ejecución.
 
 ## Motivación
 
