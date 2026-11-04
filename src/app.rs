@@ -6,6 +6,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::time::Instant;
 
 use crate::content::OptionEntry;
+use crate::fmt;
 use crate::link::{Link, LinkEvent, OutageKind};
 use crate::server::{self, FileInfo, Hop, MailHeader, OperatorInput, Reading, Request, Response};
 
@@ -524,10 +525,13 @@ impl App {
         match response {
             Response::Pong { station } => {
                 let rtt = sent_at
-                    .map(|t| t.elapsed().mul_f64(self.link.speed).as_secs_f64())
+                    .map(|t| t.elapsed().mul_f64(self.link.speed))
                     .unwrap_or_default();
-                self.ping.rtts.push(rtt);
-                self.log(format!("Respuesta de {station}: pong en {rtt:.2} s."));
+                self.ping.rtts.push(rtt.as_secs_f64());
+                self.log(format!(
+                    "Respuesta de {station}: pong en {}.",
+                    fmt::dur(rtt)
+                ));
             }
             Response::Route(hops) => {
                 self.log("Ruta recibida.");

@@ -14,6 +14,7 @@ use ratatui::widgets::{
 use tokio::time::Instant;
 
 use crate::app::{App, Focus, MenuItem};
+use crate::fmt;
 use crate::link::Target;
 
 const ACCENT: Color = Color::Rgb(180, 190, 254);
@@ -131,29 +132,6 @@ fn downgrade(buf: &mut Buffer) {
     }
 }
 
-/// Separa los miles con puntos: 384512 → "384.512".
-fn fmt_km(km: f64) -> String {
-    let digits = (km.round() as u64).to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push('.');
-        }
-        out.push(c);
-    }
-    out
-}
-
-/// Duración legible: "1.3 s" o "12 min 05 s".
-fn fmt_dur(d: Duration) -> String {
-    let s = d.as_secs_f64();
-    if s < 60.0 {
-        format!("{s:.1} s")
-    } else {
-        format!("{} min {:02} s", d.as_secs() / 60, d.as_secs() % 60)
-    }
-}
-
 fn bar(ratio: f64, width: usize) -> String {
     let filled = (ratio.clamp(0.0, 1.0) * width as f64).round() as usize;
     format!("{}{}", "█".repeat(filled), "░".repeat(width - filled))
@@ -184,7 +162,7 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     ];
     match app.link.status_at(t) {
         Some(outage) => {
-            let left = outage.ends_at.saturating_sub(t).as_secs_f64();
+            let left = outage.ends_at.saturating_sub(t).as_secs_f64().ceil();
             spans.push(Span::styled(
                 format!(
                     "⚠ SIN SEÑAL · {} · reconexión en {left:.0} s",
@@ -199,9 +177,9 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled("● ", Style::new().fg(OK)),
                 Span::raw(app.link.target.label()),
                 Span::styled("  │  ", Style::new().fg(DIM)),
-                Span::raw(format!("{} km", fmt_km(app.link.distance_km(t)))),
+                Span::raw(format!("{} km", fmt::km(app.link.distance_km(t)))),
                 Span::styled("  │  ", Style::new().fg(DIM)),
-                Span::raw(format!("ida y vuelta {}", fmt_dur(app.link.round_trip()))),
+                Span::raw(format!("ida y vuelta {}", fmt::dur(app.link.round_trip()))),
                 Span::styled("  │  ", Style::new().fg(DIM)),
                 Span::raw("señal "),
                 Span::styled(bar(f64::from(q) / 100.0, 5), Style::new().fg(OK)),
@@ -389,14 +367,14 @@ fn render_orbit(frame: &mut Frame, app: &App, area: Rect) {
             n => format!(" (+{} en vuelo)", n - 1),
         };
         (
-            format!("{dir} · {} restantes{extra}", fmt_dur(p.remaining())),
+            format!("{dir} · {} restantes{extra}", fmt::dur(p.remaining())),
             ACCENT,
         )
     } else {
         (
             format!(
                 "Enlace en reposo · {} km hasta {}",
-                fmt_km(app.link.distance_km(now)),
+                fmt::km(app.link.distance_km(now)),
                 app.link.target.destination()
             ),
             DIM,
@@ -586,7 +564,8 @@ fn render_telemetry(frame: &mut Frame, app: &App, area: Rect) {
     let Some((r, received)) = &app.telemetry else {
         return render_placeholder(frame, app, area);
     };
-    let age = received.elapsed() + app.link.one_way();
+    // El dato salió de la base hace un trayecto de ida (simulado) más lo que lleva en pantalla.
+    let age = received.elapsed().mul_f64(app.link.speed) + app.link.one_way();
     let row = |label: &str, value: String, ratio: f64, color: Color| {
         Line::from(vec![
             Span::styled(format!("{label:<14}"), Style::new().fg(DIM)),
@@ -624,21 +603,21 @@ fn render_telemetry(frame: &mut Frame, app: &App, area: Rect) {
         ),
         row(
             "Polvo",
-            format!("{:.1} µg/m³", r.dust_ugm3),
+            format!("{} µg/m³", fmt::dec(r.dust_ugm3, 1)),
             r.dust_ugm3 / 30.0,
             ACCENT,
         ),
         row(
             "Radiación",
-            format!("{:.2} µSv/h", r.radiation_usv_h),
+            format!("{} µSv/h", fmt::dec(r.radiation_usv_h, 2)),
             r.radiation_usv_h / 0.6,
             ACCENT,
         ),
         Line::raw(""),
         Line::styled(
             format!(
-                "Lectura con {:.1} s de antigüedad (el dato ya viajó hasta ti).",
-                age.as_secs_f64()
+                "Lectura tomada hace {} (lo que tarda la señal en llegar).",
+                fmt::dur(age)
             ),
             Style::new().fg(DIM),
         ),
@@ -758,7 +737,7 @@ fn render_ping(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled(format!("#{:<3}", i + 1), Style::new().fg(DIM)),
                 Span::raw(format!(
                     "Base Tranquilidad: {}",
-                    fmt_dur(Duration::from_secs_f64(*rtt))
+                    fmt::dur(Duration::from_secs_f64(*rtt))
                 )),
             ]));
         }
@@ -767,13 +746,13 @@ fn render_ping(frame: &mut Frame, app: &App, area: Rect) {
     if let Some(route) = &app.ping.route {
         lines.push(Line::raw(""));
         lines.push(Line::styled("Ruta:", Style::new().fg(ACCENT).bold()));
-        let one_way = app.link.one_way().as_secs_f64();
+        let one_way = app.link.one_way();
         for (i, hop) in route.iter().enumerate() {
             lines.push(Line::from(vec![
                 Span::styled(format!("{:>2}  ", i + 1), Style::new().fg(DIM)),
                 Span::raw(format!("{:<34}", hop.name)),
                 Span::styled(
-                    format!("{:>8.1} ms", hop.fraction * one_way * 1000.0),
+                    format!("{:>12}", fmt::latency(one_way.mul_f64(hop.fraction))),
                     Style::new().fg(GOLD),
                 ),
             ]));
