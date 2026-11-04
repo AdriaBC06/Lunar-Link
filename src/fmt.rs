@@ -8,8 +8,8 @@ pub fn dec(x: f64, prec: usize) -> String {
 }
 
 /// Separa los miles con puntos: 384512 → "384.512".
-pub fn km(km: f64) -> String {
-    let digits = (km.round() as u64).to_string();
+pub fn thousands(x: f64) -> String {
+    let digits = (x.round() as u64).to_string();
     let mut out = String::new();
     for (i, c) in digits.chars().enumerate() {
         if i > 0 && (digits.len() - i).is_multiple_of(3) {
@@ -32,10 +32,13 @@ pub fn dur(d: Duration) -> String {
     }
 }
 
-/// Latencia corta en milisegundos ("2,6 ms"); por encima de 10 s, como duración.
+/// Latencia en milisegundos ("2,6 ms", "1.284 ms"); por encima de 10 s, como duración.
 pub fn latency(d: Duration) -> String {
-    if d < Duration::from_secs(10) {
-        format!("{} ms", dec(d.as_secs_f64() * 1000.0, 1))
+    let ms = d.as_secs_f64() * 1000.0;
+    if ms < 100.0 {
+        format!("{} ms", dec(ms, 1))
+    } else if d < Duration::from_secs(10) {
+        format!("{} ms", thousands(ms))
     } else {
         dur(d)
     }
@@ -47,13 +50,14 @@ mod tests {
 
     #[test]
     fn spanish_number_format() {
-        assert_eq!(km(384_512.4), "384.512");
-        assert_eq!(km(999.0), "999");
+        assert_eq!(thousands(384_512.4), "384.512");
+        assert_eq!(thousands(999.0), "999");
         assert_eq!(dec(0.35, 2), "0,35");
         assert_eq!(dur(Duration::from_millis(2_650)), "2,7 s");
         assert_eq!(dur(Duration::from_millis(59_970)), "1 min 00 s");
         assert_eq!(dur(Duration::from_secs(725)), "12 min 05 s");
         assert_eq!(latency(Duration::from_micros(2_600)), "2,6 ms");
+        assert_eq!(latency(Duration::from_micros(1_284_400)), "1.284 ms");
         assert_eq!(latency(Duration::from_secs(750)), "12 min 30 s");
     }
 }

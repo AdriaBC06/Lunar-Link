@@ -37,13 +37,41 @@ const WIPE_SECS: f64 = 0.18;
 /// Caracteres por segundo del efecto de escritura progresiva.
 const TYPE_CPS: f64 = 90.0;
 
-fn areas(area: Rect) -> [Rect; 3] {
-    Layout::vertical([
+/// Alto del menú: una fila por opción más los bordes.
+const MENU_HEIGHT: u16 = MenuItem::ALL.len() as u16 + 2;
+
+/// Reparto de la pantalla: cabecera, menú, registro, panel del enlace, sección y pie.
+struct Areas {
+    header: Rect,
+    menu: Rect,
+    log: Rect,
+    orbit: Rect,
+    section: Rect,
+    footer: Rect,
+}
+
+fn areas(area: Rect) -> Areas {
+    let [header, body, footer] = Layout::vertical([
         Constraint::Length(3),
         Constraint::Min(8),
         Constraint::Length(1),
     ])
-    .areas(area)
+    .areas(area);
+    let [side, main] =
+        Layout::horizontal([Constraint::Length(MENU_WIDTH), Constraint::Min(20)]).areas(body);
+    // El registro ocupa el hueco bajo el menú, así la sección central gana altura.
+    let [menu, log] =
+        Layout::vertical([Constraint::Length(MENU_HEIGHT), Constraint::Min(3)]).areas(side);
+    let [orbit, section] =
+        Layout::vertical([Constraint::Length(8), Constraint::Min(6)]).areas(main);
+    Areas {
+        header,
+        menu,
+        log,
+        orbit,
+        section,
+        footer,
+    }
 }
 
 pub fn render(frame: &mut Frame, app: &App) {
@@ -62,21 +90,13 @@ pub fn render(frame: &mut Frame, app: &App) {
         return;
     }
 
-    let [header, body, footer] = areas(area);
-    let [menu, main] =
-        Layout::horizontal([Constraint::Length(MENU_WIDTH), Constraint::Min(20)]).areas(body);
-    let [orbit, section, log] = Layout::vertical([
-        Constraint::Length(8),
-        Constraint::Min(6),
-        Constraint::Length(5),
-    ])
-    .areas(main);
-
-    render_status(frame, app, header);
-    render_menu(frame, app, menu);
-    render_orbit(frame, app, orbit);
-    render_section(frame, app, section);
-    render_log(frame, app, log);
+    let a = areas(area);
+    render_status(frame, app, a.header);
+    render_menu(frame, app, a.menu);
+    render_log(frame, app, a.log);
+    render_orbit(frame, app, a.orbit);
+    render_section(frame, app, a.section);
+    let footer = a.footer;
 
     let hint = match app.focus {
         Focus::Menu => " ↑↓ navegar · Enter abrir · clic con el ratón · q salir",
@@ -98,10 +118,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
 /// Área interior de la lista del menú (para traducir clics en opciones).
 pub fn menu_inner(frame_area: Rect) -> Rect {
-    let [_, body, _] = areas(frame_area);
-    let [menu, _] =
-        Layout::horizontal([Constraint::Length(MENU_WIDTH), Constraint::Min(20)]).areas(body);
-    block("Menú", false).inner(menu)
+    block("Menú", false).inner(areas(frame_area).menu)
 }
 
 fn block(title: &str, active: bool) -> Block<'_> {
@@ -137,6 +154,48 @@ fn bar(ratio: f64, width: usize) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(width - filled))
 }
 
+fn width_of(s: &str) -> usize {
+    Span::raw(s).width()
+}
+
+/// Recorta `s` a `max` columnas, terminando en «…» si no cabe.
+fn ellipsize(s: &str, max: usize) -> String {
+    if width_of(s) <= max {
+        return s.to_string();
+    }
+    let mut out = String::new();
+    for ch in s.chars() {
+        if width_of(&out) + width_of(ch.encode_utf8(&mut [0; 4])) + 1 > max {
+            break;
+        }
+        out.push(ch);
+    }
+    out.push('…');
+    out
+}
+
+/// Ajusta `text` a `width` columnas por palabras, con `prefix` en la primera línea
+/// y sangría del mismo ancho en las siguientes.
+fn wrap_hanging(text: &str, width: usize, prefix: &str) -> Vec<String> {
+    let indent = " ".repeat(width_of(prefix));
+    let mut lines = vec![prefix.to_string()];
+    let mut fresh = true;
+    for word in text.split_whitespace() {
+        let line = lines.last_mut().unwrap();
+        let needed = width_of(word) + usize::from(!fresh);
+        if !fresh && width_of(line) + needed > width {
+            lines.push(format!("{indent}{word}"));
+        } else {
+            if !fresh {
+                line.push(' ');
+            }
+            line.push_str(word);
+        }
+        fresh = false;
+    }
+    lines
+}
+
 /// Hash barato y estable para colocar las estrellas.
 fn hash(x: u32, y: u32) -> u32 {
     let mut h = x.wrapping_mul(0x9E37_79B1) ^ y.wrapping_mul(0x85EB_CA6B);
@@ -156,16 +215,18 @@ fn typed(text: &str, since: Instant) -> &str {
 
 fn render_status(frame: &mut Frame, app: &App, area: Rect) {
     let t = app.link.elapsed();
-    let mut spans = vec![
-        Span::styled("🌙 LUNAR LINK", Style::new().fg(ACCENT).bold()),
-        Span::styled("  │  ", Style::new().fg(DIM)),
-    ];
+    let sep = || Span::styled(" │ ", Style::new().fg(DIM));
+    let mut spans = vec![Span::styled(
+        "🌙 LUNAR LINK",
+        Style::new().fg(ACCENT).bold(),
+    )];
     match app.link.status_at(t) {
         Some(outage) => {
             let left = outage.ends_at.saturating_sub(t).as_secs_f64().ceil();
+            spans.push(sep());
             spans.push(Span::styled(
                 format!(
-                    "⚠ SIN SEÑAL · {} · reconexión en {left:.0} s",
+                    "⚠ SIN SEÑAL · {} · vuelve en {left:.0} s",
                     outage.kind.label(app.link.target)
                 ),
                 Style::new().fg(WARN).bold(),
@@ -173,18 +234,52 @@ fn render_status(frame: &mut Frame, app: &App, area: Rect) {
         }
         None => {
             let q = app.link.signal_quality(t);
-            spans.extend([
-                Span::styled("● ", Style::new().fg(OK)),
-                Span::raw(app.link.target.label()),
-                Span::styled("  │  ", Style::new().fg(DIM)),
-                Span::raw(format!("{} km", fmt::km(app.link.distance_km(t)))),
-                Span::styled("  │  ", Style::new().fg(DIM)),
-                Span::raw(format!("ida y vuelta {}", fmt::dur(app.link.round_trip()))),
-                Span::styled("  │  ", Style::new().fg(DIM)),
-                Span::raw("señal "),
-                Span::styled(bar(f64::from(q) / 100.0, 5), Style::new().fg(OK)),
-                Span::raw(format!(" {q}%")),
-            ]);
+            // Segmentos por orden de aparición; si no caben, se omiten los menos importantes.
+            let segments: [(u8, Vec<Span>); 4] = [
+                (
+                    0,
+                    vec![
+                        Span::styled("● ", Style::new().fg(OK)),
+                        Span::raw(app.link.target.label()),
+                    ],
+                ),
+                (
+                    2,
+                    vec![Span::raw(format!(
+                        "{} km",
+                        fmt::thousands(app.link.distance_km(t))
+                    ))],
+                ),
+                (
+                    0,
+                    vec![Span::raw(format!(
+                        "ida y vuelta {}",
+                        fmt::dur(app.link.round_trip())
+                    ))],
+                ),
+                (
+                    1,
+                    vec![
+                        Span::raw("señal "),
+                        Span::styled(bar(f64::from(q) / 100.0, 5), Style::new().fg(OK)),
+                        Span::raw(format!(" {q}%")),
+                    ],
+                ),
+            ];
+            let room = usize::from(area.width.saturating_sub(2));
+            let width = |max_rank: u8| {
+                segments
+                    .iter()
+                    .filter(|(r, _)| *r <= max_rank)
+                    .map(|(_, seg)| 3 + seg.iter().map(Span::width).sum::<usize>())
+                    .sum::<usize>()
+                    + spans[0].width()
+            };
+            let max_rank = (0..=2).rev().find(|&r| width(r) <= room).unwrap_or(0);
+            for (_, seg) in segments.into_iter().filter(|(r, _)| *r <= max_rank) {
+                spans.push(sep());
+                spans.extend(seg);
+            }
         }
     }
     frame.render_widget(
@@ -379,7 +474,7 @@ fn render_orbit(frame: &mut Frame, app: &App, area: Rect) {
         (
             format!(
                 "Enlace en reposo · {} km hasta {}",
-                fmt::km(app.link.distance_km(now)),
+                fmt::thousands(app.link.distance_km(now)),
                 app.link.target.destination()
             ),
             DIM,
@@ -389,22 +484,29 @@ fn render_orbit(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_log(frame: &mut Frame, app: &App, area: Rect) {
-    let visible = area.height.saturating_sub(2) as usize;
-    let start = app.log.len().saturating_sub(visible);
-    let lines: Vec<Line> = app.log[start..]
-        .iter()
-        .map(|l| {
-            let color = if l.starts_with('⚠') {
-                WARN
-            } else if l.starts_with('✔') {
-                OK
-            } else {
-                Color::Reset
-            };
-            Line::styled(format!("› {l}"), Style::new().fg(color))
-        })
-        .collect();
-    frame.render_widget(Paragraph::new(lines).block(block("Registro", false)), area);
+    let b = block("Registro", false);
+    let inner = b.inner(area);
+    frame.render_widget(b, area);
+    // Recorre el registro desde el final hasta llenar el alto disponible.
+    let width = usize::from(inner.width.max(1));
+    let mut lines: Vec<Line> = Vec::new();
+    for l in app.log.iter().rev() {
+        let color = if l.starts_with('⚠') {
+            WARN
+        } else if l.starts_with('✔') {
+            OK
+        } else {
+            Color::Reset
+        };
+        let wrapped = wrap_hanging(l, width, "› ");
+        if lines.len() + wrapped.len() > usize::from(inner.height) {
+            break;
+        }
+        for row in wrapped.into_iter().rev() {
+            lines.insert(0, Line::styled(row, Style::new().fg(color)));
+        }
+    }
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_section(frame: &mut Frame, app: &App, area: Rect) {
@@ -500,6 +602,8 @@ fn render_files(frame: &mut Frame, app: &App, area: Rect) {
     ])
     .areas(area);
 
+    // Ancho útil de la descripción: el área menos el símbolo de selección y la sangría.
+    let desc_w = usize::from(list_area.width).saturating_sub(3);
     let items: Vec<ListItem> = files
         .iter()
         .map(|f| {
@@ -515,7 +619,10 @@ fn render_files(frame: &mut Frame, app: &App, area: Rect) {
                     Span::styled(format!("  {} KB", f.size_kb), Style::new().fg(GOLD)),
                     mark,
                 ]),
-                Line::styled(format!("  {}", f.description), Style::new().fg(DIM)),
+                Line::styled(
+                    format!("  {}", ellipsize(&f.description, desc_w)),
+                    Style::new().fg(DIM),
+                ),
             ])
         })
         .collect();
@@ -571,10 +678,14 @@ fn render_telemetry(frame: &mut Frame, app: &App, area: Rect) {
     };
     // El dato salió de la base hace un trayecto de ida (simulado) más lo que lleva en pantalla.
     let age = received.elapsed().mul_f64(app.link.speed) + app.link.one_way();
+    // La barra se encoge para que siempre quepa el valor (hasta 12 columnas).
+    let bar_w = usize::from(area.width)
+        .saturating_sub(14 + 2 + 12)
+        .clamp(6, 24);
     let row = |label: &str, value: String, ratio: f64, color: Color| {
         Line::from(vec![
             Span::styled(format!("{label:<14}"), Style::new().fg(DIM)),
-            Span::styled(bar(ratio, 20), Style::new().fg(color)),
+            Span::styled(bar(ratio, bar_w), Style::new().fg(color)),
             Span::raw(format!("  {value}")),
         ])
     };
@@ -620,10 +731,7 @@ fn render_telemetry(frame: &mut Frame, app: &App, area: Rect) {
         ),
         Line::raw(""),
         Line::styled(
-            format!(
-                "Lectura tomada hace {} (lo que tarda la señal en llegar).",
-                fmt::dur(age)
-            ),
+            format!("Dato de hace {} (retardo del enlace).", fmt::dur(age)),
             Style::new().fg(DIM),
         ),
     ];
@@ -729,15 +837,18 @@ fn render_operator(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_ping(frame: &mut Frame, app: &App, area: Rect) {
-    let mut lines = vec![Line::raw(app.selected_item().intro()), Line::raw("")];
-
-    if app.ping.rtts.is_empty() {
+    let mut lines = Vec::new();
+    if app.ping.rtts.is_empty() && app.ping.route.is_none() {
+        lines.push(Line::raw(app.selected_item().intro()));
+        lines.push(Line::raw(""));
         lines.push(Line::styled(
             "Aún no has lanzado ningún ping.",
             Style::new().fg(DIM),
         ));
     } else {
-        for (i, rtt) in app.ping.rtts.iter().enumerate().rev().take(5).rev() {
+        // Con la ruta en pantalla se muestran menos pings para que quepa entera.
+        let shown = if app.ping.route.is_some() { 3 } else { 6 };
+        for (i, rtt) in app.ping.rtts.iter().enumerate().rev().take(shown).rev() {
             lines.push(Line::from(vec![
                 Span::styled(format!("#{:<3}", i + 1), Style::new().fg(DIM)),
                 Span::raw(format!(
@@ -749,15 +860,21 @@ fn render_ping(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     if let Some(route) = &app.ping.route {
-        lines.push(Line::raw(""));
+        if !lines.is_empty() {
+            lines.push(Line::raw(""));
+        }
         lines.push(Line::styled("Ruta:", Style::new().fg(ACCENT).bold()));
         let one_way = app.link.one_way();
+        // Columnas: número (4), nombre (lo que sobre) y latencia (11).
+        let name_w = usize::from(area.width).saturating_sub(4 + 11).max(8);
         for (i, hop) in route.iter().enumerate() {
+            let name = ellipsize(hop.name, name_w);
+            let pad = name_w.saturating_sub(width_of(&name));
             lines.push(Line::from(vec![
                 Span::styled(format!("{:>2}  ", i + 1), Style::new().fg(DIM)),
-                Span::raw(format!("{:<34}", hop.name)),
+                Span::raw(format!("{name}{}", " ".repeat(pad))),
                 Span::styled(
-                    format!("{:>12}", fmt::latency(one_way.mul_f64(hop.fraction))),
+                    format!("{:>11}", fmt::latency(one_way.mul_f64(hop.fraction))),
                     Style::new().fg(GOLD),
                 ),
             ]));
@@ -790,4 +907,64 @@ fn render_gallery(frame: &mut Frame, app: &App, area: Rect) {
     ];
     lines.extend(art.lines().map(|l| Line::styled(l, Style::new().fg(GOLD))));
     frame.render_widget(Paragraph::new(lines), area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::link::{Link, LinkEvent};
+    use crate::server;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::crossterm::event::{KeyCode, KeyEvent};
+
+    /// Abre cada sección, entrega su respuesta y la dibuja en un búfer de prueba.
+    fn screens(width: u16, height: u16) -> Vec<(MenuItem, String)> {
+        let mut app = App::new(Link::new(
+            Target::Luna,
+            Some(Duration::from_secs(1)),
+            false,
+            1,
+        ));
+        let mut term = Terminal::new(TestBackend::new(width, height)).unwrap();
+        let mut out = Vec::new();
+        for (i, item) in MenuItem::ALL.iter().enumerate() {
+            app.focus = Focus::Menu;
+            app.select(i);
+            let mut sent: Vec<_> = app.open_section().into_iter().collect();
+            sent.extend(app.poll());
+            if *item == MenuItem::Ping {
+                sent.extend(app.on_key(KeyEvent::from(KeyCode::Char('t'))));
+            }
+            for o in sent {
+                let response = server::handle(&o.request, Duration::ZERO);
+                app.on_event(LinkEvent::Response { id: o.id, response });
+            }
+            if *item == MenuItem::Correo {
+                let o = app.on_key(KeyEvent::from(KeyCode::Enter)).unwrap();
+                let response = server::handle(&o.request, Duration::ZERO);
+                app.on_event(LinkEvent::Response { id: o.id, response });
+            }
+            app.section_since -= Duration::from_secs(1);
+            app.typing_since -= Duration::from_secs(60);
+            term.draw(|f| render(f, &app)).unwrap();
+            let buf = term.backend().buffer();
+            let text = (0..height)
+                .map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect::<String>())
+                .collect::<Vec<_>>()
+                .join("\n");
+            out.push((*item, text));
+        }
+        out
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn every_section_renders_at_minimum_size() {
+        for (item, text) in screens(MIN_WIDTH, MIN_HEIGHT) {
+            if std::env::var_os("LUNAR_DUMP").is_some() {
+                println!("--- {item:?}\n{text}");
+            }
+            assert!(text.contains(item.label()), "{item:?}\n{text}");
+        }
+    }
 }

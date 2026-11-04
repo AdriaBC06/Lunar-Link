@@ -177,16 +177,16 @@ fn route(target: Target) -> Vec<Hop> {
     let hops: &[(&'static str, f64)] = match target {
         Target::Luna => &[
             ("terminal (tú)", 0.0),
-            ("estación terrestre de Goldstone", 0.002),
-            ("satélite relé en órbita lunar", 0.97),
-            ("antena de Base Tranquilidad", 0.999),
+            ("Goldstone (Tierra)", 0.002),
+            ("relé en órbita lunar", 0.97),
+            ("antena de la base", 0.999),
             ("servidor de la base", 1.0),
         ],
         Target::Marte => &[
             ("terminal (tú)", 0.0),
-            ("antena DSN de Robledo (Madrid)", 0.000_01),
-            ("orbitador de relé marciano", 0.999_99),
-            ("antena de Base Tranquilidad", 0.999_999),
+            ("DSN Robledo (Madrid)", 0.000_01),
+            ("relé en órbita marciana", 0.999_99),
+            ("antena de la base", 0.999_999),
             ("servidor de la base", 1.0),
         ],
     };
@@ -252,7 +252,7 @@ mod tests {
         let Response::Route(mars) = handle(&Request::Traceroute(Target::Marte), ZERO) else {
             panic!()
         };
-        assert!(mars.iter().any(|h| h.name.contains("marciano")));
+        assert!(mars.iter().any(|h| h.name.contains("marciana")));
     }
 
     #[test]
