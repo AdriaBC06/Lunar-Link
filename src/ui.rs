@@ -220,11 +220,16 @@ fn put(buf: &mut Buffer, area: Rect, x: i32, y: i32, text: &str, style: Style) {
     if y < i32::from(area.y) || y >= i32::from(area.y + area.height) {
         return;
     }
-    for (i, ch) in text.chars().enumerate() {
-        let cx = x + i as i32;
-        if cx >= i32::from(area.x) && cx < i32::from(area.x + area.width) {
-            buf.set_string(cx as u16, y as u16, ch.to_string(), style);
+    // Avanza según el ancho visible de cada carácter (un emoji ocupa dos celdas).
+    let mut cx = x;
+    let mut tmp = [0u8; 4];
+    for ch in text.chars() {
+        let s: &str = ch.encode_utf8(&mut tmp);
+        let w = Span::raw(s).width() as i32;
+        if cx >= i32::from(area.x) && cx + w <= i32::from(area.x + area.width) {
+            buf.set_string(cx as u16, y as u16, s, style);
         }
+        cx += w;
     }
 }
 
