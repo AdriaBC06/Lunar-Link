@@ -57,16 +57,35 @@ impl Content {
         self.nodes.iter().find(|n| n.id == id)
     }
 
-    /// Busca el nodo cuyas palabras clave aparecen en el texto escrito.
+    /// Busca el nodo con más palabras clave presentes en el texto escrito.
+    ///
+    /// Se comparan palabras completas, así que «escena» no activa «cena».
     pub fn node_by_text(&self, text: &str) -> Option<&Node> {
-        let text = normalize(text);
+        let words: Vec<String> = normalize(text)
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_string)
+            .collect();
+        let score = |n: &Node| {
+            n.keywords
+                .iter()
+                .filter(|k| words.contains(&normalize(k)))
+                .count()
+        };
+        // En caso de empate gana el nodo que aparece antes en el contenido.
         self.nodes
             .iter()
-            .find(|n| n.keywords.iter().any(|k| text.contains(&normalize(k))))
+            .map(|n| (score(n), n))
+            .filter(|(s, _)| *s > 0)
+            .fold(None, |best: Option<(usize, &Node)>, cur| match best {
+                Some(b) if b.0 >= cur.0 => Some(b),
+                _ => Some(cur),
+            })
+            .map(|(_, n)| n)
     }
 }
 
-/// Minúsculas y sin tildes, para comparar palabras clave.
+/// Minúsculas, sin tildes y con la ñ como n, para comparar palabras clave.
 fn normalize(s: &str) -> String {
     s.to_lowercase()
         .chars()
@@ -76,6 +95,7 @@ fn normalize(s: &str) -> String {
             'í' => 'i',
             'ó' => 'o',
             'ú' | 'ü' => 'u',
+            'ñ' => 'n',
             c => c,
         })
         .collect()
@@ -122,5 +142,15 @@ mod tests {
             Some("donde")
         );
         assert!(c.node_by_text("xyzzy").is_none());
+    }
+
+    #[test]
+    fn keywords_match_whole_words_and_the_best_node() {
+        let c = content();
+        let id = |s: &str| c.node_by_text(s).map(|n| n.id.as_str());
+        assert_eq!(id("¿Cuánto tarda la señal?"), Some("senal"));
+        assert_eq!(id("una escena"), None, "«cena» no está dentro de «escena»");
+        assert_eq!(id("¿cuánto tarda la luz a Marte?"), Some("senal"));
+        assert_eq!(id("háblame de marte, el planeta rojo"), Some("marte"));
     }
 }
