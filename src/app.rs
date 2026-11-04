@@ -599,8 +599,11 @@ impl App {
                 title,
                 art,
             } => {
-                self.gallery.index = index;
-                self.gallery.image = Some((index, total, title, art));
+                // Si se pasaron varias imágenes seguidas, solo cuenta la última pedida.
+                if self.gallery.image.is_none() || index == self.gallery.index {
+                    self.gallery.index = index;
+                    self.gallery.image = Some((index, total, title, art));
+                }
             }
             Response::NotFound => self.log("El servidor no encontró lo solicitado."),
         }
@@ -693,6 +696,20 @@ mod tests {
             out.request,
             Request::Operator(OperatorInput::Say("hielo".into()))
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn gallery_ignores_stale_images() {
+        let mut app = app();
+        app.selected = MenuItem::Galeria as usize;
+        let first = press(&mut app, KeyCode::Enter).unwrap();
+        reply(&mut app, &first);
+        let to_1 = press(&mut app, KeyCode::Right).unwrap();
+        let to_2 = press(&mut app, KeyCode::Right).unwrap();
+        // La imagen 2 llega antes que la 1: la 1 ya no debe reemplazarla.
+        reply(&mut app, &to_2);
+        reply(&mut app, &to_1);
+        assert_eq!(app.gallery.image.as_ref().map(|i| i.0), Some(2));
     }
 
     #[tokio::test(start_paused = true)]
