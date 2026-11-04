@@ -1,8 +1,17 @@
+<div align="center">
+
 # 🌙 Lunar Link
+
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
+![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)
+![TUI](https://img.shields.io/badge/ui-ratatui-8a2be2)
+![CI](https://github.com/AdriaBC06/Lunar-Link/actions/workflows/ci.yml/badge.svg)
+
+</div>
 
 > Un pequeño servidor lunar al que te conectas desde la terminal. Sin IA: contenido premontado, un enlace con el retardo real de las señales espaciales y una interfaz de terminal animada e interactiva.
 
-![Demo de Lunar Link](docs/demo.gif)
+<p align="center"><img src="docs/demo.gif" alt="Demo de Lunar Link" width="800"></p>
 
 *El GIF mostrará la TUI en acción: la petición sale, viaja 1,3 s hasta la Luna, el servidor responde y la respuesta vuelve otros 1,3 s.*
 
@@ -43,6 +52,12 @@ El servidor simula la estación **Base Tranquilidad** y ofrece contenido fijo, e
 - **TUI animada e interactiva**: menús navegables con teclado y ratón, paquetes viajando por una órbita animada, campo de estrellas, barras de progreso, gráficas en vivo y cuenta atrás de la señal.
 - **Modo Marte**: retardos de minutos; se trabaja con peticiones diferidas, casi como un correo electrónico.
 - **Sin dependencias externas**: no necesita red, claves ni API. Funciona al instante.
+
+## Capturas
+
+| Modo Luna | Modo Marte | Corte de señal |
+|---|---|---|
+| ![Luna](docs/screenshot-luna.png) | ![Marte](docs/screenshot-marte.png) | ![Corte](docs/screenshot-outage.png) |
 
 ## Instalación
 

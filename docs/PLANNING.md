@@ -44,11 +44,14 @@ Cada fase debe compilar y ejecutarse, y termina en un punto de verificación.
 - **Verificación:** con tiempo acelerado, enviar una petición, hacer otra cosa y recibir la respuesta.
 
 ## Fase 7 · Pulido para portfolio
-- README final con GIF (`vhs`) y capturas de los modos Luna, Marte y un corte de señal.
-- Badges (licencia, versión, Rust, tests) y workflow de CI en GitHub Actions.
-- Publicación en crates.io, descripción corta y topics del repo: `rust`, `cli`, `tui`, `ratatui`, `latency`, `space`, `simulator`.
+- **GIF de cabecera** (`docs/demo.gif`, <15 s, ~800 px de ancho) generado con `vhs` a partir de `docs/demo.tape`: menú → ping → paquete viajando a la Luna y volviendo → descarga con barra de progreso. Regenerable con un solo comando (`vhs docs/demo.tape`).
+- **Capturas** en `docs/`: modo Luna, modo Marte y corte de señal (`screenshot-luna.png`, `screenshot-marte.png`, `screenshot-outage.png`).
+- Badges (licencia, Rust, ratatui, CI) y workflow de CI en GitHub Actions (`fmt`, `clippy`, `test`).
+- README que abre con la historia (centros de datos en el espacio) antes de lo técnico.
 - Diagrama del flujo en `docs/`.
-- **Verificación:** `cargo install lunar-link && lunar-link` funciona en una máquina limpia.
+- Publicación en crates.io, descripción corta y topics del repo: `rust`, `cli`, `tui`, `ratatui`, `latency`, `space`, `simulator`.
+- Release en GitHub con binarios precompilados (Linux, macOS, Windows).
+- **Verificación:** `cargo install lunar-link && lunar-link` funciona en una máquina limpia, y el README se ve bien en GitHub con el GIF cargando.
 
 ## Ideas opcionales (después)
 - Modo servidor real por TCP, para conectar dos terminales a través del enlace simulado.
