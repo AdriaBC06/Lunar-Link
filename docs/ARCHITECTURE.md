@@ -14,6 +14,8 @@ flowchart LR
     link["link<br/>retardo, cortes, ancho de banda"] --> server
     server["server<br/>respuestas simuladas"] --> content
     content["content<br/>contenido premontado (TOML)"]
+    ui --> fmt["fmt<br/>formato de números"]
+    app --> fmt
 ```
 
 | Módulo | Responsabilidad |
@@ -23,6 +25,7 @@ flowchart LR
 | `content` | Correos, archivos, imágenes ASCII y diálogos, embebidos desde `src/content.toml`. |
 | `app` | Estado de cada sección, peticiones en vuelo y manejo del teclado. No dibuja. |
 | `ui` | Dibuja el estado con `ratatui`: panel orbital, listas, sparklines, transiciones. |
+| `fmt` | Números y duraciones en formato español: `2,6 s`, `384.400 km`, `12 min 05 s`. |
 
 ## Viaje de una petición
 
@@ -52,4 +55,5 @@ Cada petición es una tarea de `tokio` independiente, así que pueden viajar var
 - **Cortes deterministas.** La función `Link::status_at(t)` decide si hay un corte en el instante `t` a partir de una semilla. Así la interfaz, el reintento del enlace y los tests consultan la misma fuente de verdad, sin estado compartido.
 - **Tiempo real frente a simulado.** `--speed` comprime solo los retardos de viaje y las descargas. Los cortes y las animaciones siguen en tiempo real para que sean legibles.
 - **Tests con tiempo pausado.** Los tests del enlace usan el reloj pausado de `tokio`, de modo que verificar un retardo de 25 minutos tarda microsegundos.
+- **Layout verificado en el tamaño mínimo.** Un test dibuja cada sección en un `TestBackend` de 64×24 y otro comprueba que cada ilustración ASCII cabe en el panel de la galería.
 - **Un solo binario.** El contenido va embebido con `include_str!`; no hay ficheros ni red en tiempo de ejecución.

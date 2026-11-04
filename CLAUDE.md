@@ -8,7 +8,7 @@ Ver `README.md` (descripción, uso, arquitectura), `docs/PLANNING.md` (fases y p
 Rust, `ratatui` + `crossterm`, `tokio`, `clap`, `serde` + TOML. Un único binario.
 
 ## Módulos
-`link` (retardo, cortes, ancho de banda), `server` (respuestas simuladas), `content` (datos premontados), `ui` (pantallas y animaciones), `app` (estado y eventos).
+`link` (retardo, cortes, ancho de banda), `server` (respuestas simuladas), `content` (datos premontados), `ui` (pantallas y animaciones), `app` (estado y eventos), `fmt` (formato de números en español).
 
 ## Cómo trabajar
 - Implementar por fases de `docs/PLANNING.md`, deteniéndose en cada punto de verificación.
