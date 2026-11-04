@@ -11,7 +11,7 @@
 
 </div>
 
-<p align="center"><img src="docs/demo.gif" alt="Demo de Lunar Link: un ping viaja a la Luna y vuelve, y después se descarga un archivo" width="800"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/AdriaBC06/Lunar-Link/main/docs/demo.gif" alt="Demo de Lunar Link: un ping viaja a la Luna y vuelve, y después se descarga un archivo" width="800"></p>
 
 Lunar Link es una interfaz de terminal (TUI) conectada a una estación lunar simulada. Cada petición sufre el retardo que tendría una señal de radio real: unos **1,3 s por trayecto** hasta la Luna y **entre 3 y 22 minutos** hasta Marte. El enlace modela además la distancia variable, los cortes de señal y un ancho de banda limitado.
 
@@ -46,9 +46,9 @@ Sobre el enlace:
 
 | Modo Luna | Modo Marte (×100) |
 |---|---|
-| ![Telemetría en modo Luna](docs/screenshot-luna.png) | ![Peticiones en vuelo hacia Marte](docs/screenshot-marte.png) |
+| ![Telemetría en modo Luna](https://raw.githubusercontent.com/AdriaBC06/Lunar-Link/main/docs/screenshot-luna.png) | ![Peticiones en vuelo hacia Marte](https://raw.githubusercontent.com/AdriaBC06/Lunar-Link/main/docs/screenshot-marte.png) |
 | **Corte de señal** | **Galería ASCII** |
-| ![Corte por la cara oculta de la Luna](docs/screenshot-outage.png) | ![Galería: salida de la Tierra](docs/screenshot-galeria.png) |
+| ![Corte por la cara oculta de la Luna](https://raw.githubusercontent.com/AdriaBC06/Lunar-Link/main/docs/screenshot-outage.png) | ![Galería: salida de la Tierra](https://raw.githubusercontent.com/AdriaBC06/Lunar-Link/main/docs/screenshot-galeria.png) |
 
 ## Instalación
 
