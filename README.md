@@ -50,7 +50,7 @@ El servidor simula la estación **Base Tranquilidad** y ofrece contenido fijo, e
 - **Cortes de señal**: pérdidas de comunicación aleatorias, cara oculta de la Luna, tormentas solares.
 - **Ancho de banda limitado**: los archivos grandes tardan más, como en un enlace real.
 - **TUI animada e interactiva**: menús navegables con teclado y ratón, paquetes viajando por una órbita animada, campo de estrellas, barras de progreso, gráficas en vivo y cuenta atrás de la señal.
-- **Modo Marte**: retardos de minutos; se trabaja con peticiones diferidas, casi como un correo electrónico.
+- **Modo Marte**: retardos de minutos; las peticiones se encolan, sigues navegando y cada respuesta llega después como un aviso, casi como un correo electrónico. Con `--speed` aceleras el tiempo de viaje para probarlo.
 - **Sin dependencias externas**: no necesita red, claves ni API. Funciona al instante.
 
 ## Capturas
@@ -72,7 +72,8 @@ Un solo binario, un solo comando.
 
 ```
 lunar-link                    # retardo Tierra-Luna (por defecto)
-lunar-link --target marte     # retardo Tierra-Marte
+lunar-link --target marte     # retardo Tierra-Marte (3-22 min)
+lunar-link --target marte --speed 100   # Marte con el tiempo acelerado x100
 lunar-link --delay 5          # retardo fijo en segundos (útil para pruebas)
 lunar-link --no-outages       # sin cortes de señal
 ```

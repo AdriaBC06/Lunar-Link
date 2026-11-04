@@ -10,6 +10,10 @@ use crate::link::{Link, LinkEvent, OutageKind};
 use crate::server::{self, FileInfo, Hop, MailHeader, OperatorInput, Reading, Request, Response};
 
 const MAX_LOG: usize = 100;
+const MAX_PENDING: usize = 8;
+const MAX_HISTORY: usize = 48;
+/// Segundos que permanece visible un aviso de respuesta recibida.
+const NOTICE_SECS: f64 = 5.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuItem {
@@ -65,16 +69,29 @@ pub enum Focus {
     Content,
 }
 
-/// Petición del usuario que ya salió y aún no ha vuelto.
-#[derive(Debug, Clone, Copy)]
-pub struct InFlight {
-    pub sent_at: Instant,
-    pub round_trip: Duration,
+/// Petición lista para enviar por el enlace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outgoing {
+    pub id: u64,
+    pub request: Request,
 }
 
-impl InFlight {
+/// Petición del usuario que ya salió y aún no ha vuelto.
+#[derive(Debug, Clone)]
+pub struct Pending {
+    pub id: u64,
+    pub request: Request,
+    pub sent_at: Instant,
+    /// Duración estimada del viaje completo, en tiempo simulado.
+    pub round_trip: Duration,
+    /// Factor de aceleración del tiempo con el que se envió.
+    pub speed: f64,
+}
+
+impl Pending {
+    /// Tiempo simulado transcurrido desde el envío.
     pub fn elapsed(&self) -> Duration {
-        self.sent_at.elapsed()
+        self.sent_at.elapsed().mul_f64(self.speed)
     }
 
     /// Avance estimado del viaje; no llega al 100% hasta recibir la respuesta.
@@ -139,35 +156,52 @@ pub struct App {
     pub link: Link,
     pub focus: Focus,
     pub selected: usize,
-    pub in_flight: Option<InFlight>,
+    pub pending: Vec<Pending>,
+    next_id: u64,
     pub log: Vec<String>,
+    /// Aviso temporal de respuesta recibida.
+    pub notice: Option<(String, Instant)>,
     pub should_quit: bool,
     pub mail: MailState,
     pub files: FilesState,
     pub telemetry: Option<(Reading, Instant)>,
+    pub telemetry_history: Vec<Reading>,
     telemetry_pending: bool,
     pub operator: OperatorState,
     pub ping: PingState,
     pub gallery: GalleryState,
+    /// Momento en que cambió la sección mostrada (transición de entrada).
+    pub section_since: Instant,
+    /// Momento en que llegó el último texto que se escribe letra a letra.
+    pub typing_since: Instant,
+    /// `false` si la terminal no admite color verdadero.
+    pub truecolor: bool,
     last_outage: Option<OutageKind>,
 }
 
 impl App {
     pub fn new(link: Link) -> Self {
+        let now = Instant::now();
         Self {
             link,
             focus: Focus::Menu,
             selected: 0,
-            in_flight: None,
+            pending: Vec::new(),
+            next_id: 1,
             log: vec!["Enlace establecido con la Tierra. Esperando órdenes.".into()],
+            notice: None,
             should_quit: false,
             mail: MailState::default(),
             files: FilesState::default(),
             telemetry: None,
+            telemetry_history: Vec::new(),
             telemetry_pending: false,
             operator: OperatorState::default(),
             ping: PingState::default(),
             gallery: GalleryState::default(),
+            section_since: now,
+            typing_since: now,
+            truecolor: true,
             last_outage: None,
         }
     }
@@ -176,11 +210,19 @@ impl App {
         MenuItem::ALL[self.selected]
     }
 
-    fn log(&mut self, line: impl Into<String>) {
+    pub fn log(&mut self, line: impl Into<String>) {
         self.log.push(line.into());
         if self.log.len() > MAX_LOG {
             self.log.remove(0);
         }
+    }
+
+    /// Aviso visible ahora mismo, si no ha caducado.
+    pub fn active_notice(&self) -> Option<&str> {
+        self.notice
+            .as_ref()
+            .filter(|(_, at)| at.elapsed().as_secs_f64() < NOTICE_SECS)
+            .map(|(text, _)| text.as_str())
     }
 
     /// Registra los cambios de estado de la señal. Se llama en cada fotograma.
@@ -198,20 +240,30 @@ impl App {
         }
     }
 
+    fn outgoing(&mut self, request: Request) -> Outgoing {
+        let id = self.next_id;
+        self.next_id += 1;
+        Outgoing { id, request }
+    }
+
     /// Lecturas automáticas de la telemetría mientras la pantalla está abierta.
-    pub fn poll(&mut self) -> Option<Request> {
+    pub fn poll(&mut self) -> Option<Outgoing> {
         let watching = self.focus == Focus::Content && self.selected_item() == MenuItem::Telemetria;
         if watching && !self.telemetry_pending {
             self.telemetry_pending = true;
-            return Some(Request::Telemetry);
+            return Some(self.outgoing(Request::Telemetry));
         }
         None
     }
 
-    /// Marca la petición como enviada. Devuelve `None` si ya hay otra en vuelo.
-    fn begin(&mut self, request: Request, log: &str) -> Option<Request> {
-        if self.in_flight.is_some() {
-            self.log("Ya hay una petición en vuelo.");
+    /// Registra la petición como enviada. Devuelve `None` si ya está en vuelo.
+    fn begin(&mut self, request: Request, log: &str) -> Option<Outgoing> {
+        if self.pending.iter().any(|p| p.request == request) {
+            self.log("Esa petición ya está en vuelo.");
+            return None;
+        }
+        if self.pending.len() >= MAX_PENDING {
+            self.log("Demasiadas peticiones en vuelo. Espera a que lleguen respuestas.");
             return None;
         }
         let mut round_trip = self.link.round_trip();
@@ -220,17 +272,21 @@ impl App {
         {
             round_trip += Duration::from_secs_f64(bytes as f64 / self.link.bandwidth as f64);
         }
-        self.in_flight = Some(InFlight {
+        let out = self.outgoing(request.clone());
+        self.pending.push(Pending {
+            id: out.id,
+            request,
             sent_at: Instant::now(),
             round_trip,
+            speed: self.link.speed,
         });
         self.log(log);
-        Some(request)
+        Some(out)
     }
 
     // ---- Entrada ----
 
-    pub fn on_key(&mut self, key: KeyEvent) -> Option<Request> {
+    pub fn on_key(&mut self, key: KeyEvent) -> Option<Outgoing> {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
             return None;
@@ -241,18 +297,25 @@ impl App {
         }
     }
 
-    pub fn select(&mut self, index: usize) {
-        if index < MenuItem::ALL.len() {
+    fn set_selected(&mut self, index: usize) {
+        if index != self.selected {
             self.selected = index;
+            self.section_since = Instant::now();
         }
     }
 
-    fn menu_key(&mut self, code: KeyCode) -> Option<Request> {
+    pub fn select(&mut self, index: usize) {
+        if index < MenuItem::ALL.len() {
+            self.set_selected(index);
+        }
+    }
+
+    fn menu_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         let n = MenuItem::ALL.len();
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Down | KeyCode::Char('j') => self.selected = (self.selected + 1) % n,
-            KeyCode::Up | KeyCode::Char('k') => self.selected = (self.selected + n - 1) % n,
+            KeyCode::Down | KeyCode::Char('j') => self.set_selected((self.selected + 1) % n),
+            KeyCode::Up | KeyCode::Char('k') => self.set_selected((self.selected + n - 1) % n),
             KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => return self.open_section(),
             _ => {}
         }
@@ -260,7 +323,7 @@ impl App {
     }
 
     /// Entra en la sección seleccionada y pide sus datos la primera vez.
-    pub fn open_section(&mut self) -> Option<Request> {
+    pub fn open_section(&mut self) -> Option<Outgoing> {
         self.focus = Focus::Content;
         match self.selected_item() {
             MenuItem::Correo if self.mail.headers.is_none() => {
@@ -280,7 +343,7 @@ impl App {
         }
     }
 
-    fn content_key(&mut self, code: KeyCode) -> Option<Request> {
+    fn content_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         let item = self.selected_item();
         if item == MenuItem::Operador {
             return self.operator_key(code);
@@ -314,7 +377,7 @@ impl App {
         None
     }
 
-    fn mail_key(&mut self, code: KeyCode) -> Option<Request> {
+    fn mail_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         if self.mail.open.is_some() {
             return None;
         }
@@ -334,7 +397,7 @@ impl App {
         None
     }
 
-    fn files_key(&mut self, code: KeyCode) -> Option<Request> {
+    fn files_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         let len = self.files.list.as_ref()?.len();
         match code {
             KeyCode::Down | KeyCode::Char('j') => {
@@ -345,7 +408,7 @@ impl App {
             }
             KeyCode::Enter if self.files.download.is_none() => {
                 let file = self.files.list.as_ref()?.get(self.files.selected)?.clone();
-                let request = self.begin(
+                let out = self.begin(
                     Request::Download(self.files.selected),
                     &format!("Solicitando {}...", file.name),
                 )?;
@@ -354,14 +417,14 @@ impl App {
                     done: 0,
                     total: u64::from(file.size_kb) * 1024,
                 });
-                return Some(request);
+                return Some(out);
             }
             _ => {}
         }
         None
     }
 
-    fn ping_key(&mut self, code: KeyCode) -> Option<Request> {
+    fn ping_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         match code {
             KeyCode::Enter => self.begin(Request::Ping, "Ping enviado..."),
             KeyCode::Char('t') => self.begin(Request::Traceroute, "Trazando la ruta..."),
@@ -369,7 +432,7 @@ impl App {
         }
     }
 
-    fn gallery_step(&mut self, forward: bool) -> Option<Request> {
+    fn gallery_step(&mut self, forward: bool) -> Option<Outgoing> {
         let (_, total, _, _) = self.gallery.image.as_ref()?;
         let total = *total;
         let next = if forward {
@@ -377,12 +440,12 @@ impl App {
         } else {
             (self.gallery.index + total - 1) % total
         };
-        let request = self.begin(Request::Gallery(next), "Descargando imagen...")?;
+        let out = self.begin(Request::Gallery(next), "Descargando imagen...")?;
         self.gallery.index = next;
-        Some(request)
+        Some(out)
     }
 
-    fn operator_key(&mut self, code: KeyCode) -> Option<Request> {
+    fn operator_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         let op = &mut self.operator;
         match code {
             KeyCode::Char(c) => op.input.push(c),
@@ -413,11 +476,10 @@ impl App {
                         option.label.clone(),
                     )
                 };
-                let request =
-                    self.begin(Request::Operator(input), "Mensaje enviado al operador...")?;
+                let out = self.begin(Request::Operator(input), "Mensaje enviado al operador...")?;
                 self.operator.input.clear();
                 self.operator.history.push((true, said));
-                return Some(request);
+                return Some(out);
             }
             _ => {}
         }
@@ -428,25 +490,38 @@ impl App {
 
     pub fn on_event(&mut self, event: LinkEvent) {
         match event {
-            LinkEvent::Progress { done, total } => {
+            LinkEvent::Progress { done, total, .. } => {
                 if let Some(d) = &mut self.files.download {
                     d.done = done;
                     d.total = total;
                 }
             }
-            LinkEvent::Response(response) => self.on_response(response),
+            LinkEvent::Response { id, response } => self.on_response(id, response),
         }
     }
 
-    fn on_response(&mut self, response: Response) {
-        let sent_at = self.in_flight.map(|f| f.sent_at);
-        if !matches!(response, Response::Telemetry(_)) {
-            self.in_flight = None;
+    fn on_response(&mut self, id: u64, response: Response) {
+        let sent_at = self
+            .pending
+            .iter()
+            .position(|p| p.id == id)
+            .map(|i| self.pending.remove(i).sent_at);
+        let notice = match &response {
+            Response::Pong { .. } => Some("Ping"),
+            Response::Route(_) => Some("Ruta"),
+            Response::MailList(_) | Response::Mail { .. } => Some("Correo"),
+            Response::Files(_) | Response::FileReceived { .. } => Some("Archivos"),
+            Response::Operator { .. } => Some("Operador"),
+            Response::Image { .. } => Some("Galería"),
+            Response::Telemetry(_) | Response::NotFound => None,
+        };
+        if let Some(section) = notice {
+            self.notice = Some((format!("📬 Respuesta recibida: {section}"), Instant::now()));
         }
         match response {
             Response::Pong { station } => {
                 let rtt = sent_at
-                    .map(|t| t.elapsed().as_secs_f64())
+                    .map(|t| t.elapsed().mul_f64(self.link.speed).as_secs_f64())
                     .unwrap_or_default();
                 self.ping.rtts.push(rtt);
                 self.log(format!("Respuesta de {station}: pong en {rtt:.2} s."));
@@ -463,7 +538,10 @@ impl App {
                 from,
                 subject,
                 body,
-            } => self.mail.open = Some((from, subject, body)),
+            } => {
+                self.typing_since = Instant::now();
+                self.mail.open = Some((from, subject, body));
+            }
             Response::Files(list) => {
                 self.log(format!("{} archivos disponibles.", list.len()));
                 self.files.list = Some(list);
@@ -475,9 +553,14 @@ impl App {
             }
             Response::Telemetry(reading) => {
                 self.telemetry_pending = false;
+                self.telemetry_history.push(reading.clone());
+                if self.telemetry_history.len() > MAX_HISTORY {
+                    self.telemetry_history.remove(0);
+                }
                 self.telemetry = Some((reading, Instant::now()));
             }
             Response::Operator { text, options } => {
+                self.typing_since = Instant::now();
                 self.operator.history.push((false, text));
                 self.operator.options = options;
                 self.operator.selected = 0;
@@ -511,24 +594,33 @@ mod tests {
         ))
     }
 
-    fn press(app: &mut App, code: KeyCode) -> Option<Request> {
+    fn press(app: &mut App, code: KeyCode) -> Option<Outgoing> {
         app.on_key(KeyEvent::from(code))
+    }
+
+    fn reply(app: &mut App, out: &Outgoing) {
+        let response = server::handle(&out.request, Duration::ZERO);
+        app.on_event(LinkEvent::Response {
+            id: out.id,
+            response,
+        });
     }
 
     #[tokio::test(start_paused = true)]
     async fn opening_a_section_requests_its_data_only_once() {
         let mut app = app();
-        assert_eq!(press(&mut app, KeyCode::Enter), Some(Request::ListMail));
+        let out = press(&mut app, KeyCode::Enter).expect("pide el buzón");
+        assert_eq!(out.request, Request::ListMail);
         assert_eq!(app.focus, Focus::Content);
-        assert!(app.in_flight.is_some());
-        // Mientras hay una petición en vuelo no se envía otra.
-        assert_eq!(app.begin(Request::Ping, "x"), None);
+        assert_eq!(app.pending.len(), 1);
 
-        app.on_event(LinkEvent::Response(server::handle(
-            &Request::ListMail,
-            Duration::ZERO,
-        )));
-        assert!(app.in_flight.is_none() && app.mail.headers.is_some());
+        // Volver a abrir mientras la petición sigue en vuelo no la duplica.
+        press(&mut app, KeyCode::Esc);
+        assert_eq!(press(&mut app, KeyCode::Enter), None);
+        assert_eq!(app.pending.len(), 1);
+
+        reply(&mut app, &out);
+        assert!(app.pending.is_empty() && app.mail.headers.is_some());
         press(&mut app, KeyCode::Esc);
         assert_eq!(
             press(&mut app, KeyCode::Enter),
@@ -538,14 +630,29 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn requests_queue_while_you_keep_navigating() {
+        let mut app = app();
+        let mail = press(&mut app, KeyCode::Enter).unwrap();
+        press(&mut app, KeyCode::Esc);
+        press(&mut app, KeyCode::Down);
+        let files = press(&mut app, KeyCode::Enter).unwrap();
+        assert_eq!(app.pending.len(), 2);
+
+        // Las respuestas se emparejan por id aunque lleguen en otro orden.
+        reply(&mut app, &files);
+        assert_eq!(app.pending.len(), 1);
+        assert!(app.files.list.is_some() && app.mail.headers.is_none());
+        reply(&mut app, &mail);
+        assert!(app.pending.is_empty() && app.mail.headers.is_some());
+        assert!(app.active_notice().is_some());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn operator_sends_typed_text_or_selected_option() {
         let mut app = app();
         app.selected = MenuItem::Operador as usize;
-        press(&mut app, KeyCode::Enter);
-        app.on_event(LinkEvent::Response(server::handle(
-            &Request::Operator(OperatorInput::Goto("inicio".into())),
-            Duration::ZERO,
-        )));
+        let first = press(&mut app, KeyCode::Enter).unwrap();
+        reply(&mut app, &first);
         assert!(!app.operator.options.is_empty());
 
         // 'q' se escribe en el campo, no cierra la aplicación.
@@ -553,9 +660,10 @@ mod tests {
             press(&mut app, KeyCode::Char(c));
         }
         assert!(!app.should_quit);
+        let out = press(&mut app, KeyCode::Enter).unwrap();
         assert_eq!(
-            press(&mut app, KeyCode::Enter),
-            Some(Request::Operator(OperatorInput::Say("hielo".into())))
+            out.request,
+            Request::Operator(OperatorInput::Say("hielo".into()))
         );
     }
 
@@ -565,18 +673,14 @@ mod tests {
         assert_eq!(app.poll(), None);
         app.selected = MenuItem::Telemetria as usize;
         press(&mut app, KeyCode::Enter);
-        assert_eq!(app.poll(), Some(Request::Telemetry));
+        let first = app.poll().expect("primera lectura");
+        assert_eq!(first.request, Request::Telemetry);
         assert_eq!(app.poll(), None, "una lectura a la vez");
-        app.on_event(LinkEvent::Response(server::handle(
-            &Request::Telemetry,
-            Duration::ZERO,
-        )));
-        assert_eq!(app.poll(), Some(Request::Telemetry));
+        reply(&mut app, &first);
+        assert_eq!(app.telemetry_history.len(), 1);
+        let second = app.poll().expect("siguiente lectura");
         press(&mut app, KeyCode::Esc);
-        app.on_event(LinkEvent::Response(server::handle(
-            &Request::Telemetry,
-            Duration::ZERO,
-        )));
+        reply(&mut app, &second);
         assert_eq!(app.poll(), None);
     }
 }

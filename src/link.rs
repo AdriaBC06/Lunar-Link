@@ -61,7 +61,7 @@ impl Target {
                     3.0 * 60.0 * LIGHT_SPEED_KM_S,
                     22.0 * 60.0 * LIGHT_SPEED_KM_S,
                 );
-                ((min + max) / 2.0, (max - min) / 2.0, 3600.0)
+                ((min + max) / 2.0, (max - min) / 2.0, 600.0)
             }
         }
     }
@@ -99,10 +99,14 @@ pub struct Outage {
 pub enum LinkEvent {
     /// Avance de una descarga en curso.
     Progress {
+        id: u64,
         done: u64,
         total: u64,
     },
-    Response(Response),
+    Response {
+        id: u64,
+        response: Response,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -112,6 +116,8 @@ pub struct Link {
     pub fixed_one_way: Option<Duration>,
     pub outages: bool,
     pub bandwidth: u64,
+    /// Factor de aceleración del tiempo de viaje (retardos y descargas); los cortes no cambian.
+    pub speed: f64,
     seed: u64,
     start: Instant,
 }
@@ -130,12 +136,18 @@ impl Link {
             fixed_one_way,
             outages,
             bandwidth: DEFAULT_BANDWIDTH,
+            speed: 1.0,
             seed,
             start: Instant::now(),
         }
     }
 
-    /// Tiempo transcurrido desde que arrancó el enlace.
+    /// Duración real que tarda en transcurrir un intervalo de tiempo simulado.
+    fn real(&self, simulated: Duration) -> Duration {
+        simulated.div_f64(self.speed)
+    }
+
+    /// Tiempo real transcurrido desde que arrancó el enlace.
     pub fn elapsed(&self) -> Duration {
         self.start.elapsed()
     }
@@ -213,31 +225,32 @@ impl Link {
     }
 
     /// Envía una petición: retardo de ida, servidor, (descarga) y retardo de vuelta.
-    pub async fn transmit(&self, request: Request, tx: UnboundedSender<LinkEvent>) {
+    pub async fn transmit(&self, id: u64, request: Request, tx: UnboundedSender<LinkEvent>) {
         self.wait_for_signal().await;
-        sleep(self.one_way()).await;
+        sleep(self.real(self.one_way())).await;
 
         if let Request::Download(index) = &request
             && let Some(total) = server::file_size_bytes(*index)
         {
-            self.stream(total, &tx).await;
+            self.stream(id, total, &tx).await;
         }
 
         let response = server::handle(&request, self.elapsed());
         self.wait_for_signal().await;
-        sleep(self.one_way()).await;
-        let _ = tx.send(LinkEvent::Response(response));
+        sleep(self.real(self.one_way())).await;
+        let _ = tx.send(LinkEvent::Response { id, response });
     }
 
     /// Transfiere `total` bytes limitados por el ancho de banda; los cortes la pausan.
-    async fn stream(&self, total: u64, tx: &UnboundedSender<LinkEvent>) {
-        let chunk = (self.bandwidth as f64 * CHUNK_INTERVAL.as_secs_f64()).max(1.0) as u64;
+    async fn stream(&self, id: u64, total: u64, tx: &UnboundedSender<LinkEvent>) {
+        let chunk =
+            (self.bandwidth as f64 * self.speed * CHUNK_INTERVAL.as_secs_f64()).max(1.0) as u64;
         let mut done = 0;
         while done < total {
             self.wait_for_signal().await;
             sleep(CHUNK_INTERVAL).await;
             done = (done + chunk).min(total);
-            let _ = tx.send(LinkEvent::Progress { done, total });
+            let _ = tx.send(LinkEvent::Progress { id, done, total });
         }
     }
 }
@@ -255,7 +268,7 @@ mod tests {
     async fn round_trip(link: &Link, request: Request) -> (Duration, Vec<LinkEvent>) {
         let (tx, mut rx) = unbounded_channel();
         let start = Instant::now();
-        link.transmit(request, tx).await;
+        link.transmit(0, request, tx).await;
         let elapsed = start.elapsed();
         let mut events = Vec::new();
         while let Ok(e) = rx.try_recv() {
@@ -271,7 +284,10 @@ mod tests {
         assert!((2.5..2.7).contains(&secs), "tardó {secs} s");
         assert!(matches!(
             events.last(),
-            Some(LinkEvent::Response(Response::Pong { .. }))
+            Some(LinkEvent::Response {
+                response: Response::Pong { .. },
+                ..
+            })
         ));
     }
 
@@ -345,7 +361,10 @@ mod tests {
         assert!(elapsed >= Duration::from_millis(10_300), "{elapsed:?}");
         assert!(matches!(
             events.last(),
-            Some(LinkEvent::Response(Response::Pong { .. }))
+            Some(LinkEvent::Response {
+                response: Response::Pong { .. },
+                ..
+            })
         ));
     }
 
@@ -361,13 +380,35 @@ mod tests {
             "{elapsed:?} vs {expected}"
         );
         let last = events.iter().rev().find_map(|e| match e {
-            LinkEvent::Progress { done, total } => Some((*done, *total)),
+            LinkEvent::Progress { done, total, .. } => Some((*done, *total)),
             _ => None,
         });
         assert_eq!(last, Some((size as u64, size as u64)));
         assert!(matches!(
             events.last(),
-            Some(LinkEvent::Response(Response::FileReceived { .. }))
+            Some(LinkEvent::Response {
+                response: Response::FileReceived { .. },
+                ..
+            })
         ));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn speed_compresses_travel_time_but_not_signal_schedule() {
+        let mut l = link(Target::Marte, None, false);
+        l.speed = 100.0;
+        // Ida y vuelta simulada de ~25 min (a Marte) pasa en ~15 s reales.
+        let (elapsed, _) = round_trip(&l, Request::Ping).await;
+        let secs = elapsed.as_secs_f64();
+        assert!((14.0..16.0).contains(&secs), "tardó {secs} s reales");
+
+        // Los cortes dependen del tiempo real: igual con cualquier velocidad.
+        let slow = link(Target::Marte, None, true);
+        let fast = Link {
+            speed: 100.0,
+            ..slow
+        };
+        let t = Duration::from_secs(85);
+        assert_eq!(slow.status_at(t), fast.status_at(t));
     }
 }
