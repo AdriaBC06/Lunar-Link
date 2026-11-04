@@ -58,8 +58,8 @@ impl MenuItem {
             MenuItem::Operador => {
                 "Habla con el operador: elige una opción o escribe una palabra clave."
             }
-            MenuItem::Ping => "Mide tu enlace (Enter) o traza la ruta hasta la Luna (t).",
-            MenuItem::Galeria => "Imágenes en ASCII de la superficie lunar.",
+            MenuItem::Ping => "Mide tu enlace (Enter) o traza la ruta hasta la base (t).",
+            MenuItem::Galeria => "Imágenes ASCII enviadas desde la base.",
         }
     }
 }
@@ -431,7 +431,9 @@ impl App {
     fn ping_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         match code {
             KeyCode::Enter => self.begin(Request::Ping, "Ping enviado..."),
-            KeyCode::Char('t') => self.begin(Request::Traceroute, "Trazando la ruta..."),
+            KeyCode::Char('t') => {
+                self.begin(Request::Traceroute(self.link.target), "Trazando la ruta...")
+            }
             _ => None,
         }
     }

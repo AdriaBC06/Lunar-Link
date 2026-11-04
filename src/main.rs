@@ -75,13 +75,14 @@ async fn main() -> io::Result<()> {
     let mut app = App::new(link);
     app.truecolor = supports_truecolor();
     if cli.target == Target::Marte {
+        app.log("Modo Marte: mismo servidor de la base, con el retardo Tierra-Marte.");
         if cli.speed > 1.0 {
             app.log(format!(
-                "Modo Marte: tiempo acelerado ×{}. Las respuestas llegan como avisos.",
+                "Tiempo acelerado ×{}. Las respuestas llegan como avisos.",
                 cli.speed
             ));
         } else {
-            app.log("Modo Marte: las respuestas tardan minutos. Prueba --speed 100 para acelerar.");
+            app.log("Las respuestas tardan minutos. Prueba --speed 100 para acelerar.");
         }
     }
 

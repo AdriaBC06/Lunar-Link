@@ -4,6 +4,7 @@ use std::f64::consts::TAU;
 use std::time::Duration;
 
 use crate::content::{OptionEntry, content};
+use crate::link::Target;
 
 pub const STATION: &str = "Base Tranquilidad";
 
@@ -21,7 +22,8 @@ pub enum OperatorInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Ping,
-    Traceroute,
+    /// Traza la ruta; los saltos dependen del destino del enlace.
+    Traceroute(Target),
     ListMail,
     ReadMail(usize),
     ListFiles,
@@ -105,28 +107,7 @@ pub fn handle(request: &Request, mission: Duration) -> Response {
     let c = content();
     match request {
         Request::Ping => Response::Pong { station: STATION },
-        Request::Traceroute => Response::Route(vec![
-            Hop {
-                name: "terminal (tú)",
-                fraction: 0.0,
-            },
-            Hop {
-                name: "estación terrestre Goldstone",
-                fraction: 0.002,
-            },
-            Hop {
-                name: "satélite relé Tierra-Luna L2",
-                fraction: 0.55,
-            },
-            Hop {
-                name: "antena de Base Tranquilidad",
-                fraction: 0.999,
-            },
-            Hop {
-                name: "servidor lunar",
-                fraction: 1.0,
-            },
-        ]),
+        Request::Traceroute(target) => Response::Route(route(*target)),
         Request::ListMail => Response::MailList(
             c.mails
                 .iter()
@@ -191,6 +172,29 @@ pub fn handle(request: &Request, mission: Duration) -> Response {
     }
 }
 
+/// Saltos del traceroute. `fraction` es la parte del trayecto de ida ya recorrida.
+fn route(target: Target) -> Vec<Hop> {
+    let hops: &[(&'static str, f64)] = match target {
+        Target::Luna => &[
+            ("terminal (tú)", 0.0),
+            ("estación terrestre de Goldstone", 0.002),
+            ("satélite relé en órbita lunar", 0.97),
+            ("antena de Base Tranquilidad", 0.999),
+            ("servidor de la base", 1.0),
+        ],
+        Target::Marte => &[
+            ("terminal (tú)", 0.0),
+            ("antena DSN de Robledo (Madrid)", 0.000_01),
+            ("orbitador de relé marciano", 0.999_99),
+            ("antena de Base Tranquilidad", 0.999_999),
+            ("servidor de la base", 1.0),
+        ],
+    };
+    hops.iter()
+        .map(|&(name, fraction)| Hop { name, fraction })
+        .collect()
+}
+
 /// Telemetría determinista según el ciclo día/noche lunar.
 fn reading(mission: Duration) -> Reading {
     let t = mission.as_secs_f64();
@@ -234,6 +238,21 @@ mod tests {
             ));
         }
         assert_eq!(handle(&Request::ReadMail(999), ZERO), Response::NotFound);
+    }
+
+    #[test]
+    fn route_depends_on_target_and_ends_at_the_server() {
+        for target in [Target::Luna, Target::Marte] {
+            let Response::Route(hops) = handle(&Request::Traceroute(target), ZERO) else {
+                panic!()
+            };
+            assert!(hops.windows(2).all(|w| w[0].fraction < w[1].fraction));
+            assert_eq!(hops.last().unwrap().fraction, 1.0);
+        }
+        let Response::Route(mars) = handle(&Request::Traceroute(Target::Marte), ZERO) else {
+            panic!()
+        };
+        assert!(mars.iter().any(|h| h.name.contains("marciano")));
     }
 
     #[test]
