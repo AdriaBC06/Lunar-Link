@@ -19,17 +19,19 @@ Sleep 1s
 
 # Ping: el paquete viaja a la Luna y vuelve.
 Down 4
+Sleep 500ms
 Enter
+Sleep 300ms
 Enter
-Sleep 3.2s
+Sleep 4.5s
 
 # Archivos: lista y descarga con barra de progreso.
 Escape
 Up 3
 Enter
-Sleep 3s
+Sleep 3.5s
 Enter
-Sleep 5s
+Sleep 6.5s
 
 Hide
 Escape

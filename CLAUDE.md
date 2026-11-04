@@ -2,7 +2,7 @@
 
 Pequeño "servidor lunar" simulado, sin IA: contenido premontado al que te conectas desde una TUI con el retardo real de las señales espaciales (Luna ~1,3 s por trayecto, Marte 3-22 min). El objetivo es una TUI bonita, animada e interactiva. Es un proyecto de portfolio.
 
-Ver `README.md` (descripción, uso, arquitectura) y `docs/PLANNING.md` (fases y puntos de verificación).
+Ver `README.md` (descripción, uso, arquitectura), `docs/PLANNING.md` (fases y puntos de verificación) y `docs/STATUS.md` (estado actual, pendientes y cómo probar).
 
 ## Stack
 Rust, `ratatui` + `crossterm`, `tokio`, `clap`, `serde` + TOML. Un único binario.

@@ -1,6 +1,6 @@
 # Captura de un corte de señal (espera a la cara oculta, ~85 s):
 #   cargo build --release && vhs docs/outage.tape
-Output /tmp/lunar-link-outage.gif
+Output "/tmp/lunar-link-outage.gif"
 
 Set Shell "bash"
 Set FontSize 14
