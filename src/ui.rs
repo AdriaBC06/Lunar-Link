@@ -101,6 +101,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     let hint = match app.focus {
         Focus::Menu => " ↑↓ navegar · Enter abrir · clic con el ratón · q salir",
         Focus::Content => match app.selected_item() {
+            MenuItem::Correo if app.mail.open.is_some() => " ↑↓ desplazar · Esc volver a la lista",
             MenuItem::Correo => " ↑↓ elegir · Enter leer · Esc volver",
             MenuItem::Archivos => " ↑↓ elegir · Enter descargar · Esc volver",
             MenuItem::Telemetria => " Esc volver",
@@ -570,7 +571,18 @@ fn render_mail(frame: &mut Frame, app: &App, area: Rect) {
             Line::raw(""),
         ];
         lines.extend(typed(body.trim(), app.typing_since).lines().map(Line::raw));
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
+        // Alto tras el ajuste de línea, para no desplazarse más allá del final.
+        let width = usize::from(area.width.max(1));
+        let total: usize = lines.iter().map(|l| l.width().max(1).div_ceil(width)).sum();
+        let max_scroll = total.saturating_sub(usize::from(area.height)) as u16;
+        app.mail.max_scroll.set(max_scroll);
+        let scroll = app.mail.scroll.min(max_scroll);
+        frame.render_widget(
+            Paragraph::new(lines)
+                .wrap(Wrap { trim: false })
+                .scroll((scroll, 0)),
+            area,
+        );
         return;
     }
     let Some(headers) = &app.mail.headers else {

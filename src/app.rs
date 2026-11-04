@@ -1,5 +1,6 @@
 //! Estado de la aplicación y manejo de entrada.
 
+use std::cell::Cell;
 use std::time::Duration;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -115,6 +116,10 @@ pub struct MailState {
     pub headers: Option<Vec<MailHeader>>,
     pub selected: usize,
     pub open: Option<(String, String, String)>,
+    /// Desplazamiento vertical del mensaje abierto.
+    pub scroll: u16,
+    /// Desplazamiento máximo según el último dibujado (lo actualiza la interfaz).
+    pub max_scroll: Cell<u16>,
 }
 
 #[derive(Debug)]
@@ -383,6 +388,16 @@ impl App {
 
     fn mail_key(&mut self, code: KeyCode) -> Option<Outgoing> {
         if self.mail.open.is_some() {
+            // La interfaz limita el desplazamiento al final del texto.
+            match code {
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.mail.scroll = (self.mail.scroll + 1).min(self.mail.max_scroll.get())
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.mail.scroll = self.mail.scroll.saturating_sub(1)
+                }
+                _ => {}
+            }
             return None;
         }
         let len = self.mail.headers.as_ref()?.len();
@@ -410,7 +425,10 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => {
                 self.files.selected = (self.files.selected + len - 1) % len
             }
-            KeyCode::Enter if self.files.download.is_none() => {
+            KeyCode::Enter if self.files.download.is_some() => {
+                self.log("Ya hay una descarga en curso. Espera a que termine.");
+            }
+            KeyCode::Enter => {
                 let file = self.files.list.as_ref()?.get(self.files.selected)?.clone();
                 let out = self.begin(
                     Request::Download(self.files.selected),
@@ -549,6 +567,7 @@ impl App {
                 body,
             } => {
                 self.typing_since = Instant::now();
+                self.mail.scroll = 0;
                 self.mail.open = Some((from, subject, body));
             }
             Response::Files(list) => {
