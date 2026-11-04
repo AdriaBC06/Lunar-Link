@@ -2,6 +2,7 @@
 
 # 🌙 Lunar Link
 
+[![Crates.io](https://img.shields.io/crates/v/lunar-link)](https://crates.io/crates/lunar-link)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![Rust](https://img.shields.io/badge/rust-1.88%2B-orange?logo=rust)
 ![TUI](https://img.shields.io/badge/ui-ratatui-8a2be2)
@@ -55,11 +56,17 @@ Sobre el enlace:
 Requiere Rust 1.88 o superior.
 
 ```
-cargo install --git https://github.com/AdriaBC06/Lunar-Link
+cargo install lunar-link
 lunar-link
 ```
 
-En la sección de [releases](https://github.com/AdriaBC06/Lunar-Link/releases) hay binarios precompilados para Linux, macOS y Windows.
+Con [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) se descarga el binario precompilado en lugar de compilarlo:
+
+```
+cargo binstall lunar-link
+```
+
+En la sección de [releases](https://github.com/AdriaBC06/Lunar-Link/releases) también hay binarios precompilados para Linux, macOS y Windows.
 
 Para compilar desde el código fuente:
 
