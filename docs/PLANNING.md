@@ -26,11 +26,12 @@ Estado actual, pendientes y cómo probar: [`STATUS.md`](STATUS.md).
 - Modo Marte (3-22 min) con peticiones diferidas que llegan como notificación, y tiempo acelerado (x10, x100) para probarlo.
 - **Verificación:** revisión visual en varios tamaños, ~60 FPS sin CPU alta, y en modo Marte acelerado enviar una petición, hacer otra cosa y recibir la respuesta.
 
-## Fase 4 · Portfolio 🟡
+## Fase 4 · Portfolio ✅
 - **GIF de cabecera** (`docs/demo.gif`, <15 s) generado con `vhs docs/demo.tape`, y capturas de modo Luna, modo Marte y corte de señal.
 - Badges, CI en GitHub Actions (`fmt`, `clippy`, `test`), diagrama del flujo en `docs/`.
-- Publicación en crates.io, topics del repo (`rust`, `cli`, `tui`, `ratatui`, `latency`, `space`, `simulator`) y release con binarios.
-- **Verificación:** `cargo install lunar-link && lunar-link` funciona en una máquina limpia y el README se ve bien en GitHub.
+- Publicación en crates.io, topics del repo (`rust`, `cli`, `tui`, `ratatui`, `latency`, `space`, `simulator`) y release con binarios (Linux x86_64 y ARM64, macOS Intel y Apple Silicon, Windows), también instalables con `cargo binstall`.
+- Página del proyecto en el portafolio personal (adriabc.top/lunar-link/) con enlaces a crates.io y GitHub.
+- **Verificación:** `cargo install lunar-link && lunar-link` funciona en una máquina limpia y el README se ve bien en GitHub. Comprobado: `cargo install lunar-link` desde crates.io y el binario de Linux de la release. Los binarios de Windows y macOS se compilan en CI, pero no se han ejecutado.
 
 ## Ideas opcionales (después)
 - Modo servidor real por TCP, para conectar dos terminales a través del enlace simulado.

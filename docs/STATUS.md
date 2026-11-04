@@ -9,7 +9,7 @@
 | 1 · Enlace y TUI base | ✅ Hecha | Proyecto Rust, CLI con `clap`, enlace asíncrono con retardo de ida y vuelta, menú con teclado y ratón, `ping`. |
 | 2 · Servidor lunar y realismo | ✅ Hecha | Contenido premontado (correo, archivos, galería, operador, telemetría), retardo variable, cortes de señal y ancho de banda limitado. |
 | 3 · Animaciones y modo Marte | ✅ Hecha | Panel orbital animado, sparklines, transiciones, escritura progresiva, peticiones concurrentes, `--speed` y paleta de 256 colores. |
-| 4 · Portfolio | 🟡 Parcial | Hecho: licencia, metadatos del crate, CI, workflow de releases, documentación, GIF y capturas. Falta la publicación. |
+| 4 · Portfolio | ✅ Hecha | Licencia, metadatos del crate, CI, workflow de releases, documentación, GIF y capturas. Publicado en crates.io (`lunar-link` 0.1.0), release `v0.1.0` con binarios y página en el portafolio personal. |
 
 ## Implementado
 
@@ -27,18 +27,21 @@
 - `docs/ARCHITECTURE.md` con diagramas Mermaid y `docs/PLANNING.md` con el plan por fases.
 - `docs/demo.gif` y cuatro capturas generadas con `vhs` a partir de los `.tape` de `docs/`.
 
-## Pendiente de publicación
+## Publicación
 
-1. Descripción y topics del repositorio (`rust`, `cli`, `tui`, `ratatui`, `latency`, `space`, `simulator`).
-2. Publicación en crates.io (`cargo publish --dry-run` ya pasa) y, después, badge de crates.io e instalación con `cargo install lunar-link`.
-3. Release `v0.1.0`: crear la etiqueta dispara el workflow de binarios.
-4. Hacer público el repositorio para que el README, el GIF y los badges sean visibles.
+- crates.io: `lunar-link` 0.1.0 (`cargo install lunar-link`).
+- GitHub: repositorio público con topics y release `v0.1.0`, con binarios para Linux (x86_64 y ARM64), macOS (Intel y Apple Silicon) y Windows, cada uno con su `.sha256`. El metadato `[package.metadata.binstall]` apunta a esos archivos.
+- Portafolio: https://adriabc.top/lunar-link/
+
+## Pendiente
+
+- Probar `cargo binstall lunar-link`.
+- El README que muestra crates.io para la 0.1.0 es anterior a algunos cambios de redacción; se actualizará en la siguiente versión.
 
 ## Sin verificar
 
 - La restauración de la terminal tras un `panic` no se ha forzado en una prueba manual. `ratatui::init` restaura la pantalla y un hook propio libera la captura del ratón.
-- El workflow de release no se ha ejecutado nunca.
-- No se ha probado la compilación en macOS ni en Windows.
+- Los binarios de Windows, macOS y Linux ARM64 de la release se compilan en CI, pero no se han ejecutado. Solo se probó el de Linux x86_64.
 
 ## Limitaciones conocidas
 
