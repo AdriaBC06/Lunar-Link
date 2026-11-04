@@ -304,10 +304,13 @@ impl App {
         }
     }
 
-    pub fn select(&mut self, index: usize) {
-        if index < MenuItem::ALL.len() {
+    /// Selecciona una opción del menú. Devuelve `false` si el índice no existe.
+    pub fn select(&mut self, index: usize) -> bool {
+        let valid = index < MenuItem::ALL.len();
+        if valid {
             self.set_selected(index);
         }
+        valid
     }
 
     fn menu_key(&mut self, code: KeyCode) -> Option<Outgoing> {

@@ -24,7 +24,7 @@ struct Cli {
     #[arg(long, value_enum, default_value = "luna")]
     target: Target,
     /// Retardo de ida fijo en segundos (sustituye al del destino)
-    #[arg(long, value_name = "SEGUNDOS")]
+    #[arg(long, value_name = "SEGUNDOS", value_parser = parse_delay)]
     delay: Option<f64>,
     /// Acelera el tiempo de viaje y las descargas (útil en Marte: --speed 100)
     #[arg(long, value_name = "FACTOR", default_value_t = 1.0, value_parser = parse_speed)]
@@ -34,10 +34,22 @@ struct Cli {
     no_outages: bool,
 }
 
+/// Retardo máximo admitido con `--delay` (una hora).
+const MAX_DELAY_S: f64 = 3600.0;
+/// Aceleración máxima admitida con `--speed`.
+const MAX_SPEED: f64 = 10_000.0;
+
+fn parse_delay(s: &str) -> Result<f64, String> {
+    match s.parse::<f64>() {
+        Ok(v) if (0.0..=MAX_DELAY_S).contains(&v) => Ok(v),
+        _ => Err(format!("debe ser un número entre 0 y {MAX_DELAY_S}")),
+    }
+}
+
 fn parse_speed(s: &str) -> Result<f64, String> {
     match s.parse::<f64>() {
-        Ok(v) if v.is_finite() && v >= 1.0 => Ok(v),
-        _ => Err("debe ser un número mayor o igual que 1".into()),
+        Ok(v) if (1.0..=MAX_SPEED).contains(&v) => Ok(v),
+        _ => Err(format!("debe ser un número entre 1 y {MAX_SPEED}")),
     }
 }
 
@@ -74,8 +86,16 @@ async fn main() -> io::Result<()> {
     }
 
     let mut terminal = ratatui::init();
-    execute!(io::stdout(), EnableMouseCapture)?;
-    let result = run(&mut terminal, app).await;
+    // `ratatui::init` ya restaura la pantalla ante un panic; falta soltar el ratón.
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = execute!(io::stdout(), DisableMouseCapture);
+        hook(info);
+    }));
+    let result = match execute!(io::stdout(), EnableMouseCapture) {
+        Ok(()) => run(&mut terminal, app).await,
+        Err(e) => Err(e),
+    };
     let _ = execute!(io::stdout(), DisableMouseCapture);
     ratatui::restore();
     result
@@ -103,9 +123,10 @@ async fn run(terminal: &mut ratatui::DefaultTerminal, mut app: App) -> io::Resul
                 let inner = ui::menu_inner(terminal.get_frame().area());
                 let inside = mouse.column >= inner.x
                     && mouse.column < inner.x + inner.width
-                    && mouse.row >= inner.y;
-                if inside {
-                    app.select((mouse.row - inner.y) as usize);
+                    && mouse.row >= inner.y
+                    && mouse.row < inner.y + inner.height;
+                // Solo cuenta el clic sobre una opción, no sobre el hueco vacío del menú.
+                if inside && app.select((mouse.row - inner.y) as usize) {
                     app.open_section()
                 } else {
                     None
