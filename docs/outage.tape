@@ -12,7 +12,7 @@ Set Theme "Catppuccin Mocha"
 Hide
 Type "./target/release/lunar-link --delay 1"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 Down 4
 Enter

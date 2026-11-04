@@ -241,6 +241,17 @@ mod tests {
     }
 
     #[test]
+    fn gallery_art_fits_the_smallest_panel() {
+        // Panel de la galería a 64×24: 38 columnas y 8 filas bajo el título.
+        for img in &content().images {
+            let art = img.art.trim_matches('\n');
+            let w = art.lines().map(|l| l.chars().count()).max().unwrap_or(0);
+            assert!(w <= 38 && art.lines().count() <= 8, "{}", img.title);
+            assert!(art.is_ascii(), "{} debe ser ASCII puro", img.title);
+        }
+    }
+
+    #[test]
     fn route_depends_on_target_and_ends_at_the_server() {
         for target in [Target::Luna, Target::Marte] {
             let Response::Route(hops) = handle(&Request::Traceroute(target), ZERO) else {

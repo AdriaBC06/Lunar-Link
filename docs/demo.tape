@@ -13,9 +13,9 @@ Set TypingSpeed 40ms
 Hide
 Type "./target/release/lunar-link --no-outages"
 Enter
-Sleep 1s
+Sleep 2s
 Show
-Sleep 1s
+Sleep 2s
 
 # Ping: el paquete viaja a la Luna y vuelve.
 Down 4

@@ -11,7 +11,7 @@ Set Theme "Catppuccin Mocha"
 Hide
 Type "./target/release/lunar-link --no-outages"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 Down 2
 Enter

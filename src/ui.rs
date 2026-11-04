@@ -27,6 +27,66 @@ const STAR: Color = Color::Rgb(205, 214, 244);
 const EARTH: Color = Color::Rgb(137, 180, 250);
 const MOON: Color = Color::Rgb(186, 194, 222);
 const MARS: Color = Color::Rgb(250, 179, 135);
+const LAND: Color = Color::Rgb(148, 210, 140);
+const CRATER: Color = Color::Rgb(127, 132, 156);
+const MARS_DARK: Color = Color::Rgb(206, 126, 96);
+
+/// Sprite de un cuerpo celeste: glifos y, en paralelo, una máscara de color por celda.
+/// En la máscara `o` es el color base, `x` el secundario y el espacio deja ver el
+/// fondo (las estrellas).
+struct Sprite {
+    rows: [&'static str; 3],
+    mask: [&'static str; 3],
+    base: Color,
+    detail: Color,
+}
+
+const EARTH_SPRITE: Sprite = Sprite {
+    rows: [" ▄███▄ ", "███████", " ▀███▀ "],
+    mask: [" oxooo ", "xxoooxo", " ooxxo "],
+    base: EARTH,
+    detail: LAND,
+};
+const MOON_SPRITE: Sprite = Sprite {
+    rows: [" ▄█▄ ", "█████", " ▀█▀ "],
+    mask: [" oox ", "xoooo", " oxo "],
+    base: MOON,
+    detail: CRATER,
+};
+const MARS_SPRITE: Sprite = Sprite {
+    rows: [" ▄█▄ ", "█████", " ▀█▀ "],
+    mask: [" oox ", "xooxo", " oxo "],
+    base: MARS,
+    detail: MARS_DARK,
+};
+
+impl Sprite {
+    fn width(&self) -> i32 {
+        self.rows[0].chars().count() as i32
+    }
+
+    /// Dibuja el sprite con su esquina superior izquierda en (`x`, `y`).
+    fn draw(&self, buf: &mut Buffer, area: Rect, x: i32, y: i32) {
+        for (dy, (row, mask)) in self.rows.iter().zip(self.mask).enumerate() {
+            for (dx, (glyph, m)) in row.chars().zip(mask.chars()).enumerate() {
+                let color = match m {
+                    'o' => self.base,
+                    'x' => self.detail,
+                    _ => continue,
+                };
+                let mut tmp = [0u8; 4];
+                put(
+                    buf,
+                    area,
+                    x + dx as i32,
+                    y + dy as i32,
+                    glyph.encode_utf8(&mut tmp),
+                    Style::new().fg(color),
+                );
+            }
+        }
+    }
+}
 
 pub const MENU_WIDTH: u16 = 24;
 pub const MIN_WIDTH: u16 = 64;
@@ -352,13 +412,14 @@ fn render_orbit(frame: &mut Frame, app: &App, area: Rect) {
     let center = y0 + sky_h / 2;
     let w = i32::from(inner.width);
 
-    let (dest_color, dest_label) = match app.link.target {
-        Target::Luna => (MOON, "Luna"),
-        Target::Marte => (MARS, "Marte"),
+    let dest = match app.link.target {
+        Target::Luna => &MOON_SPRITE,
+        Target::Marte => &MARS_SPRITE,
     };
+    let dest_label = app.link.target.label();
     let earth_x = x0 + 1;
-    let dest_x = x0 + w - 5;
-    let path_start = earth_x + 6;
+    let dest_x = x0 + w - 1 - dest.width();
+    let path_start = earth_x + EARTH_SPRITE.width() + 1;
     let path_end = dest_x - 2;
     let path_len = f64::from(path_end - path_start).max(1.0);
 
@@ -399,25 +460,27 @@ fn render_orbit(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     // Cuerpos celestes.
-    let earth = [" ▄▄▄ ", "█████", " ▀▀▀ "];
-    let dest = [" ▄▄ ", "████", " ▀▀ "];
-    for (i, row) in earth.iter().enumerate() {
-        let y = center - 1 + i as i32;
-        put(buf, inner, earth_x, y, row, Style::new().fg(EARTH));
-    }
-    for (i, row) in dest.iter().enumerate() {
-        let y = center - 1 + i as i32;
-        put(buf, inner, dest_x, y, row, Style::new().fg(dest_color));
-    }
+    EARTH_SPRITE.draw(buf, inner, earth_x, center - 1);
+    dest.draw(buf, inner, dest_x, center - 1);
+    // Etiquetas centradas bajo cada cuerpo.
     let label_y = y0 + sky_h;
-    put(buf, inner, earth_x, label_y, "Tierra", Style::new().fg(DIM));
+    let centered = |x: i32, sprite_w: i32, label: &str| x + (sprite_w - label.len() as i32) / 2;
+    let style = Style::new().fg(DIM);
     put(
         buf,
         inner,
-        dest_x - 1,
+        centered(earth_x, EARTH_SPRITE.width(), "Tierra"),
+        label_y,
+        "Tierra",
+        style,
+    );
+    put(
+        buf,
+        inner,
+        centered(dest_x, dest.width(), dest_label),
         label_y,
         dest_label,
-        Style::new().fg(DIM),
+        style,
     );
 
     // Paquetes en vuelo, con estela.
@@ -536,7 +599,7 @@ fn render_placeholder(frame: &mut Frame, app: &App, area: Rect) {
     let hint = if app.focus == Focus::Menu {
         "Pulsa Enter para conectar."
     } else {
-        "Esperando al servidor lunar..."
+        "Esperando respuesta del servidor..."
     };
     let lines = vec![
         Line::raw(app.selected_item().intro()),
@@ -910,15 +973,44 @@ fn render_gallery(frame: &mut Frame, app: &App, area: Rect) {
     let Some((index, total, title, art)) = &app.gallery.image else {
         return render_placeholder(frame, app, area);
     };
-    let mut lines = vec![
-        Line::styled(
-            format!("{title}  ({}/{total})", index + 1),
-            Style::new().fg(ACCENT).bold(),
-        ),
-        Line::raw(""),
-    ];
-    lines.extend(art.lines().map(|l| Line::styled(l, Style::new().fg(GOLD))));
-    frame.render_widget(Paragraph::new(lines), area);
+    let [title_area, art_area] =
+        Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(area);
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(title.as_str(), Style::new().fg(ACCENT).bold()),
+            Span::styled(format!("  {}/{total}", index + 1), Style::new().fg(DIM)),
+        ])),
+        title_area,
+    );
+
+    // Se centra el dibujo como bloque: centrar cada línea por separado lo deformaría.
+    let rows: Vec<&str> = art.lines().collect();
+    let art_w = rows.iter().map(|l| width_of(l)).max().unwrap_or(0) as u16;
+    let art_h = rows.len() as u16;
+    let x = art_area.x + art_area.width.saturating_sub(art_w) / 2;
+    let y = art_area.y + art_area.height.saturating_sub(art_h) / 2;
+    let lines: Vec<Line> = rows
+        .iter()
+        .map(|row| {
+            // Estrellas en dorado, océanos (~) en azul y el resto en el gris lunar.
+            Line::from(
+                row.chars()
+                    .map(|c| {
+                        let color = match c {
+                            '*' | '+' => GOLD,
+                            '~' => EARTH,
+                            _ => MOON,
+                        };
+                        Span::styled(c.to_string(), Style::new().fg(color))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    frame.render_widget(
+        Paragraph::new(lines),
+        Rect { x, y, ..art_area }.intersection(art_area),
+    );
 }
 
 #[cfg(test)]

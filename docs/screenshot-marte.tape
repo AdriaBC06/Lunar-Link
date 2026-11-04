@@ -11,7 +11,7 @@ Set Theme "Catppuccin Mocha"
 Hide
 Type "./target/release/lunar-link --target marte --speed 100 --no-outages"
 Enter
-Sleep 1s
+Sleep 2s
 Show
 Enter
 Escape
